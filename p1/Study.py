@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn as sk
 from rdkit import Chem
+from rdkit.Chem import Descriptors
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error as MSE
@@ -53,8 +54,7 @@ def write_to_file(filename, predictions):
 def add_features(dataframe, labels=['n_atoms'], functions=[Chem.rdchem.Mol.GetNumHeavyAtoms]):
     N = dataframe.shape[0]
     N_start = int(dataframe.index[0])
-    smiles = dataframe[['smiles']]
-    smiles = smiles[:].values
+    smiles = dataframe.smiles.values
     for label, function in zip(labels, functions):
         M = dataframe.shape[1]
         dataframe.insert(M, label, np.zeros([N,1]))
@@ -62,7 +62,9 @@ def add_features(dataframe, labels=['n_atoms'], functions=[Chem.rdchem.Mol.GetNu
     dataframe.insert(M, "Bonds_type_mean", np.zeros([N,1]))
     dataframe.insert(M, "Bonds_type_rms", np.zeros([N,1]))
     for n in range(0, N):
-        mol= Chem.MolFromSmiles(smiles[n,0])
+        if n%10000 == 0:
+            print "Done ", n, " events!"
+        mol= Chem.MolFromSmiles(smiles[n])
         for label, function in zip(labels, functions):
             dataframe.set_value(N_start+n, label, function(mol))
         ##loop through the bonds
@@ -73,6 +75,16 @@ def add_features(dataframe, labels=['n_atoms'], functions=[Chem.rdchem.Mol.GetNu
         dataframe.set_value(N_start+n, "Bonds_type_rms", np.std(temp_bonds_type))
 
 
+def modify_data(df):
+    lbls = ['n_Bonds', 'n_HeavyAtoms', 'n_NumAtoms', 'n_NumConformers', 
+    'mol_wt', 'HeavyAtomMolWt', 'ExactMolWt', 'NumValenceElectrons', 'NumRadicalElectrons']
+    fns  = [ Chem.rdchem.Mol.GetNumBonds, Chem.rdchem.Mol.GetNumHeavyAtoms, 
+    Chem.rdchem.Mol.GetNumAtoms, Chem.rdchem.Mol.GetNumConformers, Chem.Descriptors.MolWt, 
+    Chem.Descriptors.HeavyAtomMolWt, Chem.Descriptors.ExactMolWt, Chem.Descriptors.NumValenceElectrons, Chem.Descriptors.NumRadicalElectrons]
+    add_features(df, lbls, fns)
+    return df
+
+
 def clean_data(df, output=False):
     #drop gap values
     if not output:
@@ -80,9 +92,6 @@ def clean_data(df, output=False):
     #drop smiles strings, add in length
 
     ##add in other features
-    lbls = ['n_Bonds', 'n_HeavyAtoms', 'n_NumAtoms', 'n_NumConformers']
-    fns  = [ Chem.rdchem.Mol.GetNumBonds, Chem.rdchem.Mol.GetNumHeavyAtoms, Chem.rdchem.Mol.GetNumAtoms, Chem.rdchem.Mol.GetNumConformers]
-    add_features(df, lbls, fns)
     """
     Example Feature Engineering
     this calculates the length of each smile string and adds a feature column with those lengths
@@ -109,15 +118,15 @@ def filter_data(df_train, df_test, Y_train):
             df_train = df_train.drop(col, axis=1)
             df_test = df_test.drop(col, axis=1)
             #print "Drop: ", col
-        # elif math.fabs(correlation) < 0.1:
-        #     # plt.plot(df_train[col], Y_train, 'o' , label='train')
-        #     # plt.xlabel(col)
-        #     # plt.ylabel("gap")
-        #     # plt.savefig('Plot/Drop_value_' + col + '-gap.png', bbox_inches='tight')
-        #     # plt.clf()
-        #     df_train = df_train.drop(col, axis=1)
-        #     df_test = df_test.drop(col, axis=1)
-        #     print "Drop: ", col, correlation
+        elif math.fabs(correlation) < 0.1:
+            # plt.plot(df_train[col], Y_train, 'o' , label='train')
+            # plt.xlabel(col)
+            # plt.ylabel("gap")
+            # plt.savefig('Plot/Drop_value_' + col + '-gap.png', bbox_inches='tight')
+            # plt.clf()
+            df_train = df_train.drop(col, axis=1)
+            df_test = df_test.drop(col, axis=1)
+            print "Drop: ", col, correlation
         else:
             plt.plot(df_train[col], Y_train, 'o' , label='train')
             plt.xlabel(col)
@@ -183,19 +192,23 @@ def analysis():
     global analysis_time
     analysis_time = time.time()
 
-    NPartdata = int(1000000 * 0.1) #takes 1sec to load; 1% of the total size
-    df_train = pd.read_csv("train.csv", nrows=NPartdata) ##total length is 1,000,000, 47sec loading
-    df_test  = pd.read_csv("train.csv", skiprows=NPartdata, nrows=NPartdata/5) #pd.read_csv("test.csv")
+    NPartdata = int(1000000 * 0.02) #takes 1sec to load; 1% of the total size
+    df_train = pd.read_csv("train_updated.csv", nrows=NPartdata) ##total length is 1,000,000, 47sec loading
+    df_test  = pd.read_csv("train_updated.csv", skiprows=NPartdata, nrows=NPartdata/5) #pd.read_csv("test.csv")
     if ops.output:
-        df_test = pd.read_csv("test.csv", nrows=10) 
+        df_test = pd.read_csv("test_updated.csv") 
     print("Load: --- %s seconds ---" % (time.time() - analysis_time))
 
     ##first rename the test sample
-    df_test.columns = df_train.columns
+    if ops.output:
+        df_test['gap'] = df_test['Id']
+        df_test = df_test.drop(['Id'], axis=1)
+    else:
+        df_test.columns = df_train.columns
 
     #print df_train.info()
-    #print df_train.head()
-    #print df_test.head()
+    #print df_train.columns.values
+    #print df_test.columns.values
     #print df_train.dtypes
     #print df_test.dtypes
     #print df_train.index
@@ -204,9 +217,12 @@ def analysis():
     #store gap values
     ##for other classifiers to work; need to convert back!
     Y_train = df_train.gap.values * 1000
-    Y_test  = df_test.gap.values * 1000
     Y_train = np.round(Y_train).astype(int)
-    Y_test = np.round(Y_test).astype(int) 
+    if not ops.output:
+        Y_test  = df_test.gap.values * 1000
+        Y_test = np.round(Y_test).astype(int) 
+    else:
+        Y_test = Y_train[:df_test.shape[0]]
     #print Y_train
 
     ##clean the framework, add in features
@@ -233,13 +249,13 @@ def analysis():
     print "Test features:", X_test.shape, "Test gap:", Y_test.shape
 
     ##build models
-    legs = ["Nearest Neighbors", 
+    legs = [#"Nearest Neighbors", 
             #"Linear SVM", 
             #"RBF SVM", 
             ##"Gaussian Process",
             #"Decision Tree Classify", 
             "Decision Tree Regress", 
-            "Random Forest", 
+            #"Random Forest", 
             #"Neural Net", 
             #"AdaBoost",
             #"Naive Bayes", 
@@ -251,19 +267,19 @@ def analysis():
             #"Poly 3",
             ]
     classifiers = [
-        KNeighborsClassifier(),
+        #KNeighborsClassifier(),
         #SVC(kernel="linear", C=0.025), ##very slow
         #SVC(gamma=2, C=1), ##super slow
         ##GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True), #super slow
         #DecisionTreeClassifier(max_depth=20),
         DecisionTreeRegressor(max_depth=20),
-        RandomForestClassifier(),
+        #RandomForestClassifier(),
         #MLPClassifier(alpha=0.1, random_state=1), #rather slow
         #AdaBoostClassifier(), ##slow
         #GaussianNB(),
         #QuadraticDiscriminantAnalysis(),
         #AdaBoostClassifier( DecisionTreeClassifier(max_depth=7), n_estimators=600, learning_rate=1.5, algorithm="SAMME"),
-        make_pipeline(PolynomialFeatures(2), sk.linear_model.Ridge()),
+        #make_pipeline(PolynomialFeatures(2), sk.linear_model.Ridge()),
         #make_pipeline(PolynomialFeatures(2), sk.linear_model.Lasso()),
         #make_pipeline(PolynomialFeatures(2), sk.linear_model.ARDRegression()),
         #make_pipeline(PolynomialFeatures(3), sk.linear_model.Ridge()),
@@ -276,14 +292,16 @@ def analysis():
     #modeling(X_train, Y_train, X_test, Y_test, model=svm.SVC(gamma=0.001, C=100.), leg="SVM")
     #modeling(X_train, Y_train, X_test, Y_test, model=RandomForestRegressor(), leg="RF")
     #modeling(X_train, Y_train, X_test, Y_test, model=rbm, leg="NR")
-    #outputmodel = []
-    for i, model in enumerate(classifiers):
-        modeling(X_train, Y_train, X_test, Y_test, model=model, leg=legs[i])
-    print " ################DONE################# "
+    if ops.output:
+        classifiers[0].fit(X_train, Y_train)
+        result = classifiers[0].predict(X_test)/1000.0
+        write_to_file("random1.csv", result) #sample1.csv
+    else:
+        outputmodel = []
+        for i, model in enumerate(classifiers):
+            outputmodel.append(modeling(X_train, Y_train, X_test, Y_test, model=model, leg=legs[i]))
+        print " ################DONE################# "
     
-
-    #write_to_file("random1.csv", LR_pred) #sample1.csv
-    #write_to_file("random2.csv", RF_pred) #sample2.csv
 
 def main():
     #start time
@@ -291,28 +309,33 @@ def main():
     global ops
     ops = options()
     #setup basics
-    #analysis()
+    analysis()
 
     ##for slimming the dataset
-    df_train = pd.read_csv("train.csv", nrows=1000) ##total length is 1,000,000, 47sec loading
-    df_test = pd.read_csv("test.csv", nrows=1000) ##total length is 1,000,000, 47sec loading
+    # df_train = pd.read_csv("train.csv") ##total length is 1,000,000, 47sec loading
+    # df_test = pd.read_csv("test.csv") ##total length is 1,000,000, 47sec loading
+    # df_train_col_gap  = df_train['gap']
+    # df_train_col_smile  = df_train['smiles']
+    # df_train  = df_train.drop(['smiles'], axis=1)
+    # df_train  = df_train.drop(['gap'], axis=1)
+    # df_test_col_gap  = df_test['Id']
+    # df_test_col_smile  = df_test['smiles']
+    # df_test  = df_test.drop(['Id'], axis=1)
+    # df_test  = df_test.drop(['smiles'], axis=1)
+    # Y_train  = df_train_col_gap.values
+    # df_train, df_test = filter_data(df_train, df_test, Y_train)
+    # df_train['gap'] = df_train_col_gap
+    # df_train['smiles'] = df_train_col_smile
+    # df_test['Id'] = df_test_col_gap
+    # df_test['smiles']= df_test_col_smile
+    # df_train.to_csv("train_slim.csv")
+    # df_test.to_csv("test_slim.csv")
 
-    df_train_col_gap  = df_train['gap']
-    df_train_col_smile  = df_train['smiles']
-    df_train  = df_train.drop(['smiles'], axis=1)
-    df_train  = df_train.drop(['gap'], axis=1)
-    df_test_col_gap  = df_test['Id']
-    df_test_col_smile  = df_test['smiles']
-    df_test  = df_test.drop(['Id'], axis=1)
-    df_test  = df_test.drop(['smiles'], axis=1)
-    Y_train  = df_train_col_gap.values
-    df_train, df_test = filter_data(df_train, df_test, Y_train)
-    df_train['gap'] = df_train_col_gap
-    df_train['smiles'] = df_train_col_smile
-    df_test['Id'] = df_test_col_gap
-    df_test['smiles']= df_test_col_smile
-    df_train.to_csv("train_slim.csv")
-    df_test.to_csv("test_slim.csv")
+    ##for adding features to dataset
+    # df_train = pd.read_csv("train_updated.csv") ##total length is 1,000,000, 47sec loading
+    # df_train = modify_data(df_train)
+    # df_train.to_csv("train_updated2.csv")
+
 
     # #parallel compute!
     # print " Running %s jobs on %s cores" % (len(inputtasks), mp.cpu_count()-1)
