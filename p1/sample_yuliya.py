@@ -1,3 +1,11 @@
+# CS181 P1
+#
+
+# read train data set; first N_train lines are for training. 
+# Next N_test lines are for testing.
+# Add features from Chem
+# compute RMSE
+
 import os
 os.environ['RDBASE']='C:\\ProgramData\\Anaconda2\\envs\\my-rdkit-env\\Lib\\site-packages\\rdkit'
 import pandas as pd
@@ -7,26 +15,31 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 import rdkit as rd
 from rdkit import Chem
+#from rdkit.Chem import AllChem
+from rdkit.Chem import Descriptors
 
 #make a smaller train and test dataset for debugging
 N_train = 10000
 N_test = 2000
+file = 'train_small.csv'
 
-#define functions for calculating new features
-def n_arom(mol):
-    len(Chem.rdchem.Mol.GetAromaticAtoms(mol))
-def n_sm_rings(mol):
-    len(Chem.rdchem.Mol.GetSymmSSSR(mol))
 
-# make lists of functions and labels to make new labels
-lbls = ['n_hatoms', 'n_atoms']
-fns = [Chem.rdchem.Mol.GetNumHeavyAtoms, Chem.rdchem.Mol.GetNumAtoms]
+# make lists of functions and labels to make features
+#lbls = ['none']
+#fns  = ['none']
+
+lbls = ['n_hatoms', 'n_atoms', 'mol_wt',\
+    'HeavyAtomMolWt', 'ExactMolWt', 'NumValenceElectrons',\
+    'NumRadicalElectrons']
+fns = [Chem.rdchem.Mol.GetNumHeavyAtoms, Chem.rdchem.Mol.GetNumAtoms, Chem.Descriptors.MolWt,\
+    Chem.Descriptors.HeavyAtomMolWt, Chem.Descriptors.ExactMolWt, Chem.Descriptors.NumValenceElectrons,\
+    Chem.Descriptors.NumRadicalElectrons]
 
 """
 Read in train and test as Pandas DataFrames
 """
 
-df_train = pd.read_csv("train_small.csv")
+df_train = pd.read_csv(file)
 #df_test = pd.read_csv("test.csv")
 #print('csv load completed')
 
@@ -50,8 +63,9 @@ def add_features(dataframe, labels, functions):
         for label, function in zip(labels, functions):
             M = dataframe.shape[1]
             dataframe.insert(M, label, np.zeros([N,1]))
+            print(label)
             for n in range(0, N):
-                print(n)
+                #print(n)
                 mol= Chem.MolFromSmiles(smiles[n,0])
                 dataframe.set_value(N_start+n, label, function(mol))
     
@@ -82,15 +96,15 @@ def write_to_file(filename, predictions):
         for i,p in enumerate(predictions):
             f.write(str(i+1) + "," + str(p) + "\n")
 
-#write_to_file("sample1.csv", LR_pred)
-#write_to_file("sample2.csv", RF_pred)
+write_to_file("sample1.csv", LR_pred)
+write_to_file("sample2.csv", RF_pred)
 
 #Compute RMSE
-N = X_test.shape[1]
 print(fns)
+print(lbls)
 
-RMSE_LR = np.sqrt(np.sum(np.dot((LR_pred-Y_test_val), (LR_pred-Y_test_val))))/N
+RMSE_LR = np.sqrt(np.sum(np.dot((LR_pred-Y_test_val), (LR_pred-Y_test_val)))/N_test)
 print(('LR RMSE = ' +str(RMSE_LR)))
 
-RMSE_RF = np.sqrt(np.sum(np.dot((RF_pred-Y_test_val), (RF_pred-Y_test_val))))/N
+RMSE_RF = np.sqrt(np.sum(np.dot((RF_pred-Y_test_val), (RF_pred-Y_test_val)))/N_test)
 print(('RF RMSE = '  +str(RMSE_RF)))
