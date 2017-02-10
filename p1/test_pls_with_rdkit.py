@@ -1,8 +1,9 @@
 # CS181 P1
+# Yuliya Dovzhenko
 # read train data set; first N_train lines are for training. 
 # Next N_test lines are for testing.
+# try PLS regression after adding chemistry features
 
-# try PLS regression
 import os
 os.environ['RDBASE']='C:\\ProgramData\\Anaconda2\\envs\\my-rdkit-env\\Lib\\site-packages\\rdkit'
 

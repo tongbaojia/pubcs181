@@ -1,8 +1,8 @@
 # CS181 P1
-#
+# Yuliya Dovzhenko
 # read train data set; first N_train lines are for training. 
 # Next N_test lines are for testing.
-
+# normalize the columns
 # try MLP Regressor
 
 import pandas as pd
@@ -10,7 +10,6 @@ import numpy as np
 from sklearn.preprocessing import normalize
 from sklearn.neural_network import MLPRegressor
 import numpy as np 
-from sklearn.model_selection import train_test_split
 
 import time
 
