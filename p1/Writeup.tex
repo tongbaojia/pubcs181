@@ -8,14 +8,12 @@
 \maketitle{}
 
 
-\noindent For this first practical, we were asked to predict how suitable 800K different molecules would be
-for use in solar panels. The relevant physical property of these molecules that we tried to predict
+\noindent We were asked to predict the suitabiliity of 800K different molecules for use in solar panels. The relevant physical property of these molecules that we tried to predict
 was the "gap" value, defined by the difference in energy between the highest and the lowest occupied molecular orbital.
 To do this, we had access to a 100K samples training set. The features that we used were all computed from the 
 string representation of the molecule, using a package called RDkit.
 We will first present how we preprocessed the data, and we will then describe the different machine algorithms that we
 used and the results we obtained.
-
 
 \section{Technical Approach: Preprocessing}
 
@@ -37,20 +35,15 @@ used and the results we obtained.
     Note: to gain some time, we only used 20\% of the data to determine which features we should use.
 
   \subsection{Adding chemistry features with rdchem}
-  The simplest, analytically-solvable analogy to our DFT problem is problem of calculating the energy spectrum of a Hydrogen atom in introductory quantum mechanics.  The difference between the $n$'th and $(n+1)$'th energy level is found to be
-  
-  \begin{equation}
-  \Delta E_n \frac{Zk_e e^2}{2r_n},
-  \end{equation} 
-where $Z$ is the atomic number, and $r_n$ is the Bohr radius, which is a function of the energy level number and a few known quantities. Our case of a multi-atom molecule is more complicated because it involves electron-electron interactions (in chemistry, they are described as bonds). However, the atomic numbers of the constituent atoms will still be important. In rdkit.Chem, we have the following properties which together hint at this information: molecular weight, average molecular weight, number of heavy atoms and number of atoms). The size of the gap also depends on the chemical potential, which is roughly related to the  average number of electrons per atom. Therefore, we will be interested in properties that have to do with the number of electrons. We found the following usefull properties found in rdkit Descriptor package: number of heavy atoms, number of atoms, molecular weight, average molecular weight of heavy atoms, average molecular weight, number of valence electrons and number of radical electrons.
-
+From basic quantum mechanics, there are tree kinds of information that will determine the gap: first, the degree of electron orbital overlap (bonds), second the size of the nuclei, and third the chemical potential level, which is related to the average number of electrons per atom. We found the following usefull properties the rdkit Descriptor package: number of heavy atoms, number of atoms, molecular weight, average molecular weight of heavy atoms, average molecular weight, number of valence electrons and number of radical electrons.
+\\\\
 RMSE comparison with a benchmark: 
 \begin{itemize}
 \item{Without extra features: LR RMSE = 0.3047;  RF RMSE = 0.2874}
 \item{With extra features:LR RMSE = 0.2252;  RF RMSE = 0.2273}
 \end{itemize}
 
-  \subsection{Adding non linear terms}
+  \subsection{Adding nonlinear terms}
   
     To capture the potential interactions between the different predictors, we added the interaction terms (the products between the
     different predictors). We also computed the quadratic terms.
@@ -81,47 +74,44 @@ RMSE comparison with a benchmark:
     So an elastic net basically introduces an extra hyperparameter to do model selection between LASSO, RIDGE, and their combinations.
     
     \subsection{Partial Least Squares}
-Since we are dealing with a large sparse matrix (many zeros in the original features), we decided to explore dimension reduction. In particular, we focused on the Partial Least Squares (PLS) algorithm, which projects the data onto planes of greatest variance. These planes are referred to as principal components, and they represent the degree of variability that exists in the data. We have already seen in the Preprocessing section that not all features are equally important in predicting the data. It would be a logical step to look for combinations of features which together represent one meaningful aspect of the data. 
+Since we are dealing with a large sparse matrix (many zeros in the original features), we decided to explore dimension reduction. In particular, we focused on the Partial Least Squares (PLS) algorithm, which projects the data onto planes of greatest variance. These planes are referred to as principal components, and they represent the degree of variability that exists in the data. We have already seen in the Preprocessing section that not all features are equally important in predicting the data.
 
-The results are plotted in figure \ref{fig:PCL}.  The three plots correspond to PLS results different sets of data: (a) original data, (b) original data with additional chemistry features, and (c) truncated data with chemistry features. For comparison, all three tests were performed on the same subsets of the data, with 40,000 molecules used for training and 8,000 molecules used for testing. 
+Our results are plotted in figure \ref{fig:PLS}.  The three plots correspond to PLS results different sets of data: (a) original data, (b) original data with additional chemistry features, and (c) truncated data with chemistry features, and (d) truncated data with additonal features and polynomial terms. For comparison, all three tests were performed on the same subsets of the data, with 40,000 molecules used for training and 8,000 molecules used for testing. 
 
-All three plots show the RMSE converging toward a minimum value, however this does not happen at the same number of principal components. Furthermore, the value of the RMSE plateau is different in different cases. With only original data, the error is ~0.3, comparable with the LR benchmark. This indicates to us that the features in the data can be accureately represented by a little over 10 components, and still fully capture the linear aspects of the model. However, the fact that RMSE plateaus at 0.3 does not mean that we have found the optimal model. It merely indicates that there are non-linear features present in the data, which we cannot identify with a principal component analysis. 
-
-The best result using PLS is achieved on the truncated data set with additional chemistry features in \ref{fig:PLC} (c), and the RMSE converges after ~30 components. This confirms to us that chemistry features do in fact provide new information not present in the original data. The new information could be independent from the original features, or it could contain non-linear functions of the original data. 
+All four plots show the RMSE converging toward a minimum value, but the value of the RMSE plateau is different in different cases. With only original data, the error is ~0.3, comparable with the LR benchmark. This indicates to us that the features in the data can be accureately represented by a little over 10 components. However, the plateau in RMSE does not mean that we have found the optimal model. It merely indicates that there may be non-linear features present in the data, which we cannot identify with a principal component analysis. 
 
 \begin{figure}[] 
-\begin{subfigure}[t]{0.5\textwidth}
+\begin{subfigure}[t]{0.4\textwidth}
         \includegraphics[width=\textwidth]{train_N_train_40000_N_test_8000.pdf}
     \end{subfigure}
-    \begin{subfigure}[t]{0.5\textwidth}
+    \begin{subfigure}[t]{0.4\textwidth}
         \includegraphics[width=\textwidth]{train_rdkit_N_train_40000_N_test_8000.pdf}
     \end{subfigure}
     \\
-        \begin{subfigure}[t]{0.5\textwidth}
+        \begin{subfigure}[t]{0.4\textwidth}
         \includegraphics[width=\textwidth]{train_updated_N_train_40000_N_test_8000.pdf}
     \end{subfigure}
-        \caption{(a) Results of PCL trained on the original data (no extra features). The RMSE is plotted as function of the number of principal components specified in the fitting. (b) Similar to (a), but but after adding rdkit features to the original data. (c) Similar to (a), but using the truncated dataset with chemistry features. }
-            \label{fig:PCL}
+            \begin{subfigure}[t]{0.4\textwidth}
+        \includegraphics[width=\textwidth]{train_updated_sq_inv_N_train_40000_N_test_8000.pdf}
+    \end{subfigure}\\
+        \caption{(a) Results of PLS trained on the original data (no extra features). The RMSE is plotted as function of the number of principal components specified in the fitting. (b) Similar to (a), but but after adding rdkit features to the original data. (c) Similar to (a), but using the truncated dataset with chemistry features. (d) PLS on the truncated data set with additional features, their squares, inverses, and inverse squares. This is the best RMSE among our PLS attempts}
+            \label{fig:PLS}
 \end{figure}
 
-\section{Technical Approach: Validation}
+Truncated data set with additional chemistry features produces improved results, shown in Fig. \ref{fig:PLS} (c), and the RMSE converges after ~30 components. This confirms to us that chemistry features do in fact provide new information not present in the original data. In order to introduce nonlinear terms to the data, we took squares, inverses and inverse squares of non-binary features. The reasoning is that the energy gap could be inversely proportional to one of the quantities. For example, the Bohr atom energy is inversely proportional to the energy level number, although there is no direct analog to that in our features. The results of PLS applied to the data including the new powers of numeric features are shown in Fig. \ref{fig:PLS} (d). This approach yielded the lowest RMSE among all PLS methods. We also note that it takes 40 principal components for the RMSE to converge. This number is greater than that in (a) - (c), which means that the new components we added are in fact significant. We concluded that reducing the number of features was justified, and that there is some non-linearity present in the data.
+
+\subsection{Multilayer Percetion (MLP) Regression}
+
+We made a few attempts at using the MLPregressor from the sklearn neural network module to fit out data. We applied MLP to the original data as well as the truncated, feature-added data. In both cases, we saw an increase in RMSE with increasing number of hidden layers, with the minimum around 2-3 layers. In diagnosing the issue, we saw that the cross-validation loss would decrease rapidly at first and then stop changing, possibly trapped in a local minimum. Suspecting that we may not be finding the global minimum due to numerical issues, we have tried several steepest gradient descent-like methods, including a stochastic method with adaptive and constant step sizes. We then tried several activation functions, which penalize outliers differently. Finally, we tried to force the method to keep iterating by increasing the maximum number of iterations and decreasing the tolerance, with little success. 
+
+\section{Methods: Validation (should we remove this?)}
     \subsection{Split}
-    To develop and validate our models quickly without having to submit them on kaggle, we split our training data in two sets, that
-    we used as training and testing sets. (which \% did we use? 50/50 split?)
-    Note: In order to accelerate the troubleshooting process, we first ran models on a small subset of our data (training and testing sets
-    of 10k samples, and then tuned them and evaluated using all the data we had.
-    
-    \subsection{Cross Validation}
-
-
-\section{Results}
-
+In order to develop and validate our models quickly without having to submit them on kaggle, we used smaller subsets of our data (typically below 100,000 molecules) for testing models. We would use 20 percent of this subset as testing data, and the rest as training data. We would then study the error as function of the method used. 
 
 \section{Discussion}
+Given our results so far, the most promising direction to pursue is feature engineering: excluding insignificant features and adding new features made a significant improvement in our accuracy. In addition, methods that worked well involved some use of randomness or nonlinearity or both. These conclusions agree with an intuitive interpretation of the results in Fig. \ref{PLS}. On the other hand, multilayer perception did not give immediate results. Given the time constraints, it is possible that we have not identified the correct neural net-like algorithm.
 
-+ Future directions
-add other features
-CV? 
+Given more time, we would pursue new features combined with better tuning of our models, most notably Random Forrest algorithms.
 
 \end{document}
 
