@@ -76,22 +76,23 @@ RMSE comparison with a benchmark:
     \subsection{Partial Least Squares}
 Since we are dealing with a large sparse matrix (many zeros in the original features), we decided to explore dimension reduction. In particular, we focused on the Partial Least Squares (PLS) algorithm, which projects the data onto planes of greatest variance. These planes are referred to as principal components, and they represent the degree of variability that exists in the data. We have already seen in the Preprocessing section that not all features are equally important in predicting the data.
 
-Our results are plotted in figure \ref{fig:PLS}.  The three plots correspond to PLS results different sets of data: (a) original data, (b) original data with additional chemistry features, and (c) truncated data with chemistry features, and (d) truncated data with additonal features and polynomial terms. For comparison, all three tests were performed on the same subsets of the data, with 40,000 molecules used for training and 8,000 molecules used for testing. 
+Our results are plotted in figure \ref{fig:PLS}.  The four plots correspond to PLS results different sets of data: (a) original data, (b) original data with additional chemistry features, and (c) truncated data with chemistry features, and (d) truncated data with additonal features and polynomial terms. For comparison, all four tests were performed on the same subsets of the data, with 40,000 molecules used for training and 8,000 molecules used for testing. 
 
 All four plots show the RMSE converging toward a minimum value, but the value of the RMSE plateau is different in different cases. With only original data, the error is ~0.3, comparable with the LR benchmark. This indicates to us that the features in the data can be accureately represented by a little over 10 components. However, the plateau in RMSE does not mean that we have found the optimal model. It merely indicates that there may be non-linear features present in the data, which we cannot identify with a principal component analysis. 
-
 \begin{figure}[] 
-\begin{subfigure}[t]{0.4\textwidth}
+
+\centering
+\begin{subfigure}[!t]{0.3\textwidth}
         \includegraphics[width=\textwidth]{train_N_train_40000_N_test_8000.pdf}
     \end{subfigure}
-    \begin{subfigure}[t]{0.4\textwidth}
+    \begin{subfigure}[!t]{0.3\textwidth}
         \includegraphics[width=\textwidth]{train_rdkit_N_train_40000_N_test_8000.pdf}
     \end{subfigure}
     \\
-        \begin{subfigure}[t]{0.4\textwidth}
+        \begin{subfigure}[!t]{0.3\textwidth}
         \includegraphics[width=\textwidth]{train_updated_N_train_40000_N_test_8000.pdf}
     \end{subfigure}
-            \begin{subfigure}[t]{0.4\textwidth}
+            \begin{subfigure}[!t]{0.3\textwidth}
         \includegraphics[width=\textwidth]{train_updated_sq_inv_N_train_40000_N_test_8000.pdf}
     \end{subfigure}\\
         \caption{(a) Results of PLS trained on the original data (no extra features). The RMSE is plotted as function of the number of principal components specified in the fitting. (b) Similar to (a), but but after adding rdkit features to the original data. (c) Similar to (a), but using the truncated dataset with chemistry features. (d) PLS on the truncated data set with additional features, their squares, inverses, and inverse squares. This is the best RMSE among our PLS attempts}
@@ -104,12 +105,12 @@ Truncated data set with additional chemistry features produces improved results,
 
 We made a few attempts at using the MLPregressor from the sklearn neural network module to fit out data. We applied MLP to the original data as well as the truncated, feature-added data. In both cases, we saw an increase in RMSE with increasing number of hidden layers, with the minimum around 2-3 layers. In diagnosing the issue, we saw that the cross-validation loss would decrease rapidly at first and then stop changing, possibly trapped in a local minimum. Suspecting that we may not be finding the global minimum due to numerical issues, we have tried several steepest gradient descent-like methods, including a stochastic method with adaptive and constant step sizes. We then tried several activation functions, which penalize outliers differently. Finally, we tried to force the method to keep iterating by increasing the maximum number of iterations and decreasing the tolerance, with little success. 
 
-\section{Methods: Validation (should we remove this?)}
-    \subsection{Split}
-In order to develop and validate our models quickly without having to submit them on kaggle, we used smaller subsets of our data (typically below 100,000 molecules) for testing models. We would use 20 percent of this subset as testing data, and the rest as training data. We would then study the error as function of the method used. 
+%\section{Methods: Validation (should we remove this?)}
+%    \subsection{Split}
+%In order to develop and validate our models quickly without having to submit them on kaggle, we used smaller subsets of our data (typically below 100,000 molecules) for testing models. We would use 20 percent of this subset as testing data, and the rest as training data. We would then study the error as function of the method used. 
 
 \section{Discussion}
-Given our results so far, the most promising direction to pursue is feature engineering: excluding insignificant features and adding new features made a significant improvement in our accuracy. In addition, methods that worked well involved some use of randomness or nonlinearity or both. These conclusions agree with an intuitive interpretation of the results in Fig. \ref{PLS}. On the other hand, multilayer perception did not give immediate results. Given the time constraints, it is possible that we have not identified the correct neural net-like algorithm.
+Given our results so far, the most promising direction to pursue is feature engineering: excluding insignificant features and adding new features made a significant improvement in our accuracy. In addition, methods that worked well involved some use of randomness or nonlinearity or both. These conclusions agree with an intuitive interpretation of the results in Fig. \ref{fig:PLS}. On the other hand, multilayer perception did not give immediate results. Given the time constraints, it is possible that we have not identified the correct neural net-like algorithm.
 
 Given more time, we would pursue new features combined with better tuning of our models, most notably Random Forrest algorithms.
 
