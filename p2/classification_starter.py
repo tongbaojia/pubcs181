@@ -67,7 +67,7 @@
 ## a streaming way. See http://eli.thegreenplace.net/2012/03/15/processing-xml-in-python-with-elementtree/
 ## for an example. 
 
-import os, time
+import os, time, argparse
 from collections import Counter
 try:
     import xml.etree.cElementTree as ET
@@ -92,6 +92,14 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.metrics import accuracy_score, precision_score
 
+
+def options():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--maketrain",  action="store_true")
+    parser.add_argument("--train",    action="store_true")
+    parser.add_argument("--final",    action="store_true")
+    return parser.parse_args()
+
 def split_train(indir="train_full", outdir="train_sort"):
     """split the training dataset into subfolders based on their type"""
     for datafile in os.listdir(indir):
@@ -101,8 +109,8 @@ def split_train(indir="train_full", outdir="train_sort"):
     print "done!!"
 
 def make_train_test(indir="train_sort", out_train="train", out_test="test"):
-    total_train_frac = 0.3 ##this defines the total training datas will be used
-    total_test_frac  = 0.5 *  total_train_frac ##this defines the total training datas will be used
+    total_train_frac = 0.8 ##this defines the total training datas will be used
+    total_test_frac  = 0.25 *  total_train_frac ##this defines the total training datas will be used
     ##Notice the smallest sample has only 21, 
     ##This means if each type is given the same weight, the total size should be 21 * 15 = 320
     ##clear the current train and test samples
@@ -119,6 +127,13 @@ def make_train_test(indir="train_sort", out_train="train", out_test="test"):
                 if os.path.isfile(os.path.join(indir + "/" + clazz, f))]))
         y_nclass.append(clazz)
     #util.maketypeplot(n_clazz, y_nclass, ylabel="number of samples", title="Nsample", plotname="Nsample")
+    print n_clazz#invert the weight
+    invert_weight = [1/(i/(sum(n_clazz) * 1.0)) for i in n_clazz] 
+    print invert_weight
+    weight_dic = {}
+    for j, clazz in enumerate(util.malware_classes):
+        weight_dic[j] = invert_weight[y_nclass.index(clazz)]
+    print weight_dic
 
     Min_train = int( min(n_clazz) * total_train_frac )
     Min_test  = int( min(n_clazz) * total_test_frac )
@@ -131,6 +146,7 @@ def make_train_test(indir="train_sort", out_train="train", out_test="test"):
                 if os.path.isfile(os.path.join(indir + "/" + clazz, f))]) / (min(n_clazz) * 0.1) * total_train_frac)
         Min_test = int( len([f for f in os.listdir(indir + "/" + clazz)
                 if os.path.isfile(os.path.join(indir + "/" + clazz, f))]) / (min(n_clazz) * 0.1) * total_test_frac)
+        print clazz, Min_train, Min_test
         for f in os.listdir(indir + "/" + clazz):
             if train_count <= Min_train:
                 os.system("cp " + indir + "/" + clazz + "/" + f + " " + out_train + "/.")
@@ -142,8 +158,6 @@ def make_train_test(indir="train_sort", out_train="train", out_test="test"):
                 pass
     print "done making training and testing samples!!"
 
-
-    
 
 def extract_feats(ffs, direc="train", global_feat_dict=None):
     """
@@ -166,7 +180,12 @@ def extract_feats(ffs, direc="train", global_feat_dict=None):
     fds = [] # list of feature dicts
     classes = []
     ids = [] 
+    N_total = len([f for f in os.listdir(direc) if os.path.isfile(os.path.join(direc, f))])
+    N_current = 0
     for datafile in os.listdir(direc):
+        N_current += 1
+        if (N_current%100 == 0):
+            util.drawProgressBar(N_current/(N_total*1.0))
         # extract id and true class (if available) from filename
         id_str,clazz = datafile.split('.')[:2]
         ids.append(id_str)
@@ -233,10 +252,12 @@ def make_design_mat(fds, global_feat_dict=None):
 
     assert len(cols) == len(rows) and len(rows) == len(data)
    
-
+    print np.array(data), (np.array(rows), np.array(cols)), (len(fds), len(feat_dict))
     X = sparse.csr_matrix((np.array(data),
                    (np.array(rows), np.array(cols))),
                    shape=(len(fds), len(feat_dict)))
+    #unzip the matrix
+    #X = sparse.csr_matrix.todense(X)
     return X, feat_dict
     
 
@@ -287,6 +308,7 @@ def system_call_count_feats(tree):
     n_el = 0
     in_all_section = False
     for el in tree.iter():
+        #print el
         c_all["num_"+str(el.tag)] += 1
         n_el += 1 
         # ignore everything outside the "all_section" element
@@ -310,10 +332,38 @@ def system_call_count_feats(tree):
     ##finish
     return c
 
+def process_type(tree):
+    c = Counter()
+    c_ch = Counter()
+    ##try root
+    root = tree.getroot()
+    n_ch = 0
+    for child in root:
+        #print child.tag, child.attrib
+        #print child.attrib, type(child.attrib)
+        for key, val in child.attrib.items():
+            c_ch["proc_" + str(key)] += 1
+        n_ch += 1 
+    #calculate proportions for each tag, and merge everything in a dictionary; from Alan      
+    for key, val in c_ch.items():
+        #print key, val
+        c[key] = val
+        c["proc_"+key] = float(val)/n_ch
+    # c["n_el"] = n_el
+    # if c['num_processes'] != 0:
+    #     c["ratio-threads-processes"] = float(c['num_threads'])/c['num_processes']        
+    # if c['num_sections'] != 0:
+    #     c["ratio-system_calls-sections"] = float(c['num_system_calls'])/c['num_sections']
+    # if c['num_processes'] != 0:
+    #     c["ratio-system_calls-processes"] = float(c['num_system_calls'])/c['num_processes']
+    ##finish
+    return c
+
 
 ## The following function does the feature extraction, learning, and prediction
 def main():
-
+    global ops
+    ops = options()
     start_time = time.time()
     train_dir = "train"
     test_dir = "test"
@@ -321,70 +371,91 @@ def main():
     ##only need to call once
     ##split_train()
     ##for each time, make the training set
-    #make_train_test()
-    #return 0
+    if (ops.maketrain):
+        make_train_test()
+        return 0
+    if (ops.train):
 
-    # TODO put the names of the feature functions you've defined above in this list
-    ffs = [first_last_system_call_feats, system_call_count_feats]
-    
-    # extract features
-    print "extracting training features..."
-    X_train,global_feat_dict,t_train,train_ids = extract_feats(ffs, train_dir)
-    print "done extracting training features"
-    print "X_train", X_train
-    print "global_feat_dict", global_feat_dict
-    ##print "t_train", t_train ##these are the Y vectors
-    ##print "train_ids", train_ids ## these are the Y ids
-    print "extracting test features..."
-    X_test,test_feat_dict,t_test,test_ids = extract_feats(ffs, test_dir, global_feat_dict=global_feat_dict)
-    print "done extracting test features"
-    
-    # TODO train here, and learn your classification parameters
-    print "learning..."
-    learned_W = np.random.random((len(global_feat_dict),len(util.malware_classes)))
-    print "done learning"
-    print
+        # TODO put the names of the feature functions you've defined above in this list
+        ffs = [first_last_system_call_feats, system_call_count_feats, process_type]
+        
+        # extract features
+        print "extracting training features..."
+        X_train,global_feat_dict,t_train,train_ids = extract_feats(ffs, train_dir)
+        print "done extracting training features"
+        #print "X_train", X_train
+        print "global_feat_dict", global_feat_dict
+        ##print "t_train", t_train ##these are the Y vectors
+        ##print "train_ids", train_ids ## these are the Y ids
+        print "extracting test features..."
+        X_test,test_feat_dict,t_test,test_ids = extract_feats(ffs, test_dir, global_feat_dict=global_feat_dict)
+        print "done extracting test features"
+        
+        # TODO train here, and learn your classification parameters
+        print "learning..."
+        learned_W = np.random.random((len(global_feat_dict),len(util.malware_classes)))
+        print "done learning"
+        print
 
-    ##list of classifiers and their names
-    classifiers = {
-        "Nearest_Neighbors": KNeighborsClassifier(3),
-        #"Linear_SVM": SVC(kernel="linear", C=0.025),
-        #"RBF_SVM": SVC(gamma=2, C=1),
-        #"Gaussian_Process": GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True),
-        "Decision_Tree" : DecisionTreeClassifier(max_depth=5),
-        "Random_Forest" : RandomForestClassifier(max_depth=5, n_estimators=500, max_features=1),
-        #"Neural_Net" : MLPClassifier(alpha=1),
-        #"AdaBoost":AdaBoostClassifier(),
-        #"Naive_Bayes": GaussianNB(),
-        #"QDA": QuadraticDiscriminantAnalysis(),
-        }
+        ##need to add in weights in the classifier
+        # class_weight = {}
+        # for i in range(15):
+        #     class_weight[i] = 1
+        class_weight = {0: 27.07017543859649, 1: 61.720000000000006, 2: 83.4054054054054, 3: 96.4375, 4: 75.26829268292683, 5: 79.12820512820512, 6: 58.22641509433962, 7: 75.26829268292683, 8: 1.917961466749534, 9: 146.95238095238096, 10: 5.693726937269372, 11: 96.4375, 12: 8.207446808510637, 13: 52.30508474576271, 14: 77.15}
 
-    print "truth: ", t_test
-    for name, clf in classifiers.iteritems():
-        clf.fit(X_train, t_train)
-        t_test_prediction = clf.predict(X_test)
-        acc_score = accuracy_score(t_test_prediction, t_test)
-        #pre_score = precision_score(Y_test, t_test)
-        print name, " prediction: ", t_test_prediction
-        print name, " accuracy_score: ", acc_score #" precision_score: ", pre_score
+        ##list of classifiers and their names
+        classifiers = {
+            #"Nearest_Neighbors": KNeighborsClassifier(3),
+            #"Linear_SVM": SVC(kernel="linear", C=0.025),
+            #"RBF_SVM": SVC(gamma=2, C=1),
+            #"Gaussian_Process": GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True),
+            #"Decision_Tree_40" : DecisionTreeClassifier(max_depth=40),
+            "Decision_Tree_50" : DecisionTreeClassifier(max_depth=50, class_weight=class_weight),##optimal
+            #"Decision_Tree_60" : DecisionTreeClassifier(max_depth=60),
+            "Random_Forest"   : RandomForestClassifier(max_depth=5, n_estimators=500, max_features=1, class_weight=class_weight),
+            "Random_Forest_2" : RandomForestClassifier(max_depth=20, n_estimators=500, max_features=2),
+            "Random_Forest_3" : RandomForestClassifier(max_depth=30, n_estimators=1000, max_features=3),
+            "Random_Forest_4" : RandomForestClassifier(max_depth=40, n_estimators=1000, max_features=4),
+            #"Neural_Net" : MLPClassifier(alpha=1),
+            #"AdaBoost":AdaBoostClassifier(),
+            #"Naive_Bayes": GaussianNB(),
+            #"QDA": QuadraticDiscriminantAnalysis(),
+            }
+        print "truth: ", t_test
+        for name, clf in classifiers.iteritems():
+            clf.fit(X_train, t_train)
+            t_test_prediction = clf.predict(X_test)
+            acc_score = accuracy_score(t_test_prediction, t_test)
+            #pre_score = precision_score(Y_test, t_test)
+            print name, " prediction: ", t_test_prediction
+            print name, " accuracy_score: ", acc_score #" precision_score: ", pre_score
+        
+        # get rid of training data and load test data
+        del X_train
+        del t_train
+        del train_ids
+        del X_test
+        del t_test
+        del test_ids
     
-    # get rid of training data and load test data
-    del X_train
-    del t_train
-    del train_ids
-    
-    # TODO make predictions on text data and write them out
-    print "making predictions..."
-    preds = np.argmax(X_test.dot(learned_W),axis=1)
-    print "done making predictions"
-    print preds
-    
+    # TODO make predictions on text data and write them out; dumb value; comment out
+    #print "making predictions..."
+    #preds = np.argmax(X_test.dot(learned_W),axis=1)
+    #print "done making predictions"
+    #print preds
     ##for testing
-    print "Accuracy is: ", np.sum(np.equal(preds, t_test))/(len(preds) * 1.0)
+    #print "Accuracy is: ", np.sum(np.equal(preds, t_test))/(len(preds) * 1.0)
 
+    
     ##for finalizing
-    print "writing predictions..."
-    #util.write_predictions(preds, test_ids, outputfile)
+    if ops.final:
+        X_test,test_feat_dict,t_test,test_ids = extract_feats(ffs, "test_full", global_feat_dict=global_feat_dict)
+        preds = classifiers["Random_Forest_4"].predict(X_test)
+        print preds
+        print "writing predictions..."
+        util.write_predictions(preds, test_ids, outputfile)
+    ##end of finalizing
+
     print "done!"
     print("--- %s seconds ---" % (time.time() - start_time))
 
