@@ -1,0 +1,100 @@
+\documentclass[11pt]{article}
+\usepackage{subcaption}
+\usepackage{common}
+\title{Practical 2: Classifying Malicious Software}
+\author{ Baojia Tong (baojia.tong@cern.ch)\\Yuliya Dovzhenko (dovzhenko@g.harvard.edu)\\Alan Legoallec (alanlegoallec@g.harvard.edu )\\\\Public Repository: https://github.com/tongbaojia/pubcs181}
+\begin{document}
+
+
+\maketitle{}
+
+
+\noindent In this assignment, we were asked to classify $\sim$ 3000 xml files into 14 malware classes after training on $\sim$ 3000 xml files with known classes. We used this opportunity to explore multiple methods, most notably Random Forest, SVM, MLP, and gradient boosting. We found that Random Forest, combined with feature engineering, produced the best results for this dataset. 
+
+\section{Technical Approach}
+We found it helpful to preprocess the data before using it to train the model by extracting additional features and rescaling the data. We also performed cross-validation on the training data in order to tune the details of models before making predictions.
+
+\subsection{Additional Features}
+
+
+We found that the additional features drastically improved our accuracy (see below):\\
+
+\noindent Accuracy without additional features: 0.666667\\
+Accuracy with additional features:  0.899676\\
+
+
+\subsection{Handling data}
+We used the train\_test\_split() function from sklearn.model\_selection module to set aside a fraction of our training data as testing data. The testing fraction was between 0.1 and 0.2 for most of our methods. For training the Multilayer Perceptron, we took advantage of the cross-validation included in the fit() function, which is enabled by setting the parameter early\_stopping to True.\\
+
+\noindent Because some columns in our data matrix contain on average larger numbers than other columns, we had to scale the data. This is done automatically in some scikit modules, but it is not done in the MLP fit function. Therefore, we scaled our data using StandardScaler from sklearn.preprocessing library, and we took care to apply the same scaling to the train and test datasets. Ordinarily, we would like all data columns to have 0 mean and 1 standard deviation. However, when working with sparse matrices, adjusting the mean would lead to a drastic increase in the matrix size because many zero entries would be shifted to non-zero values. Therefore, we limited ourselves to enforcing 1 standard deviation. It is possible that converting the data to a dense format and scaling and shifting it may have produced better results. \\
+
+
+
+\section{Results}
+Kaggle scores obtained by our methods are summarized in table \ref{tab:results}. \\
+
+  \begin{table}
+\centering
+\begin{tabular}{llr}
+ \toprule
+ Model &  & Acc. \\
+ \midrule
+ \textsc{Baseline} & & 0.70000\\
+ \textsc{SVM} & & 0.77526 \\
+ \textsc{MLP} & & 0.78211 \\
+ \textsc{Gradient Boosting} & & 0.80632\\
+  \textsc{Random Forest} & &0.82421\\
+ \bottomrule
+\end{tabular}
+\caption{\label{tab:results} Summary of our best prediction accuracies on the kaggle test dataset.}
+\end{table}
+
+\subsection{Multilayer Perceptron}
+
+\noindent We were interested in comparing the performance of a neural network to other algorithms. We used the Multilayer Perceptron Classifier from the scikit learn module. We found that while MLP beat the baseline, it performed poorly compared to the Random Forest. This may be explained by the small size of the dataset: MLP needs to simultaneously tune many parameters, while each random tree in a forest can have fewer parameters than dimensions in the data and still capture the data well due to the superposition of many random trees. \\
+
+\noindent To determine the optimal number of parameters in a MLP model, we varied the number of layers and nodes and recorded cross-validation accuracy. Starting with three hidden layers and varying the number of nodes in each layer, we obtained the accuracy values in figure \ref{fig:MLP} (a). Since the accuracy didn't seem to saturate at 20 nodes, we extended our search all the way to 203 nodes, which equals the number of our features. It made very little sense to us to create more nodes than dimensions in the data. Despite small fluctuations, we saw an overall trend where the accuracy increases up to 25 nodes, and then stays approximately constant. \\
+
+\noindent While adding more nodes improved our accuracy, adding layers beyond three actually hurt the performance. This could be a reflection of the true nature of the relationships between different features, or it could simply indicate that the amount of data was insufficient to properly tune increasing numbers of layers.\\
+
+
+\begin{figure}[] 
+\centering
+    \begin{subfigure}[!t]{0.4\textwidth}
+        \includegraphics[width=\textwidth]{Plots/Alan_features_N_nodes_1_20_N_layers3.pdf}
+    \end{subfigure}
+        \begin{subfigure}[!t]{0.4\textwidth}
+        \includegraphics[width=\textwidth]{Plots/Alan_features_N_nodes_6-201_N_layers3.pdf}
+    \end{subfigure}
+            \begin{subfigure}[!t]{0.4\textwidth}
+        \includegraphics[width=\textwidth]{Plots/Alan_features_N_nodes_50_N_layers_1_30.pdf}
+    \end{subfigure}\\
+        \caption{Accuracy achieved with a Multilayer Perceptron algorithm (a) with three hidden layers and up to 20 nodes in each layer; (b) with three hidden layers and up to 203 nodes in each layer (equal to the number of features in the data) (c) with 50 nodes, and a variable number of hidden layers between 1 and 30.}
+            \label{fig:MLP}
+\end{figure}
+\noindent With a small dataset, it is important to avoid overfitting. With this in mind, we explored regularization within the MLP algorithm. This is done by changing the value of a constant $\alpha$, with larger $\alpha$ meaning larger penalty for overfitting. Interestingly, changing $\alpha$ by multiple orders of magnitude had no effect on our model's accuracy. These data are summarized in table \ref{tab:alpha}.
+\begin{table}
+\centering
+\begin{tabular}{llr}
+ \toprule
+$\alpha$ &  & Accuracy \\
+ \midrule
+ \textsc{1e-5} & & 0.880259\\
+ \textsc{1e-4} & & 0.899676 \\
+ \textsc{1e-3} & & 0.880259 \\
+ \textsc{1e-2} & & 0.883495\\
+ \bottomrule
+\end{tabular}
+\caption{\label{tab:alpha} The effect of regularization (quantified by a penalty constant $\alpha$) on the accuracy of MLP predictions.}
+\end{table}
+
+\section{Discussion} 
+\noindent We found that the best results are achieved through a combination of feature engineering and relatively simple methods like the Random Forest.\\ 
+
+\noindent Different malware classes appear with different frequencies in the training data set. If given more time, we would explore how this affects our accuracy by preselecting particular numbers of data points from each class.\\
+
+\noindent Since the data are sparse, we could also apply Principal Component Analysis and then examine the feature composition of each component. This would help us gain intuition about the different malware classes.
+
+
+\end{document}
+
