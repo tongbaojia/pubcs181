@@ -16,17 +16,26 @@ We found it helpful to preprocess the data before using it to train the model by
 
 \subsection{Additional Features}
 \paragraph{}
-We found that the additional features drastically improved our accuracy from 0.666667 to 0.899676. The additional feature mainly comes from counting the number of different processes and sections.
+We found that the additional features drastically improved our accuracy from 0.666667 to 0.899676. The additional feature mainly comes from counting the number of different processes and sections. This can be seen in Figure~\ref{fig:Features}. Notice no extra selection is applied on these features because some malware types are not well represented and we do not want to remove features that are potentially useful for discriminating some specific malwares, even if they often do not appear in other malwares.
 
 
 \subsection{Handling data}
 \paragraph{} We used the train\_test\_split() function from sklearn.model\_selection module to set aside a fraction of our training data as testing data. The testing fraction was between 0.1 and 0.2 for most of our methods. For training the Multilayer Perceptron, we took advantage of the cross-validation included in the fit() function, which is enabled by setting the parameter early\_stopping to True.\\
-\begin{figure}
+\begin{figure}[] 
 \centering
-\includegraphics[width=0.2\textwidth]{Plots/Nsample.png}
-\caption{List of malware and their number of samples. Large variation is observed.}
-\label{fig:var}
+    \begin{subfigure}[!t]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{Plots/Nsample.png}
+    \end{subfigure}
+        \begin{subfigure}[!t]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{Plots/Features.png}
+    \end{subfigure}
+            \begin{subfigure}[!t]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{Plots/Features_top.png}
+    \end{subfigure}\\
+        \caption{(a) List of malware and their number of samples. Large variation is observed; (b) number of countes for all 227 features (c) top appearing features.}
+            \label{fig:Features}
 \end{figure}
+
 \noindent Because some columns in our data matrix contain on average larger numbers than other columns, we had to scale the data. This is done automatically in some scikit modules, but it is not done in the MLP fit function. Therefore, we scaled our data using StandardScaler from sklearn.preprocessing library, and we took care to apply the same scaling to the train and test datasets. Ordinarily, we would like all data columns to have 0 mean and 1 standard deviation. However, when working with sparse matrices, adjusting the mean would lead to a drastic increase in the matrix size because many zero entries would be shifted to non-zero values. Therefore, we limited ourselves to enforcing 1 standard deviation. It is possible that converting the data to a dense format and scaling and shifting it may have produced better results. \\
 
 
