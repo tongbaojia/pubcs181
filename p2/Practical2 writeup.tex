@@ -32,7 +32,7 @@ We found that the additional features drastically improved our accuracy from 0.6
 
 
 \section{Results}
-\paragraph{} Kaggle scores obtained by our methods are summarized in table \ref{tab:results}. \\
+\paragraph{} We explored five different methods and compared the results. Kaggle scores obtained by our methods are summarized in table \ref{tab:results}. The best score is achieved by using a Random Forest.\\
 
   \begin{table}
 \centering
@@ -53,9 +53,9 @@ We found that the additional features drastically improved our accuracy from 0.6
 \subsection{Multilayer Perceptron}
 \paragraph{}We were interested in comparing the performance of a neural network to other algorithms. We used the Multilayer Perceptron Classifier from the scikit learn module. We found that while MLP beat the baseline, it performed poorly compared to the Random Forest. This may be explained by the small size of the dataset: MLP needs to simultaneously tune many parameters, while each random tree in a forest can have fewer parameters than dimensions in the data and still capture the data well due to the superposition of many random trees.
 
-\paragraph{}To determine the optimal number of parameters in a MLP model, we varied the number of layers and nodes and recorded cross-validation accuracy. Starting with three hidden layers and varying the number of nodes in each layer, we obtained the accuracy values in figure \ref{fig:MLP} (a). Since the accuracy didn't seem to saturate at 20 nodes, we extended our search all the way to 203 nodes, which equals the number of our features. It made very little sense to us to create more nodes than dimensions in the data. Despite small fluctuations, we saw an overall trend where the accuracy increases up to 25 nodes, and then stays approximately constant. 
+\paragraph{}To determine the optimal number of parameters in a MLP model, we varied the number of layers and nodes and recorded cross-validation accuracy. Starting with three hidden layers and varying the number of nodes in each layer, we obtained the accuracy values in figure \ref{fig:MLP} (a). Since the accuracy didn't seem to saturate at 20 nodes, we extended our search all the way to 203 nodes, which equals the number of our features. It made very little sense to us to create more nodes than dimensions in the data. Despite small fluctuations, we saw an overall trend where the accuracy increases up to 25 nodes, and then stays approximately constant, shown in figure \ref{fig:MLP} (b). 
 
-\paragraph{}While adding more nodes improved our accuracy, adding layers beyond three actually hurt the performance. This could be a reflection of the true nature of the relationships between different features, or it could simply indicate that the amount of data was insufficient to properly tune increasing numbers of layers.
+\paragraph{}While adding more nodes improved our accuracy, adding layers beyond three actually hurt the performance (see figure \ref{fig:MLP} (c)). This could be a reflection of the true nature of the relationships between different features, or it could simply indicate that the amount of data was insufficient to properly tune increasing numbers of layers.
 \begin{figure}[] 
 \centering
     \begin{subfigure}[!t]{0.3\textwidth}
@@ -104,13 +104,8 @@ $\alpha$ &  & Accuracy \\
             \label{fig:DT}
 \end{figure}
 
-
-\subsection{SVM}
-\subsection{Random Forest}
-
-
 \section{Discussion} 
-\paragraph{}We found that the best results are achieved through a combination of feature engineering and relatively simple methods like the Random Forest.
+\paragraph{}We found that the best results are achieved through a combination of feature engineering and relatively simple methods like the Random Forest. We suspect that simpler methods (with fewer parameters) perform so well here because the data set is small. A neural network would require much more data to tune the parameters.
 
 \paragraph{}Different malware classes appear with different frequencies in the training data set. If given more time, we would explore how this affects our accuracy by preselecting particular numbers of data points from each class. Also, more features can possibly be extracted from the information contained in the subprocess commands, which could help further improve the performance. 
 
