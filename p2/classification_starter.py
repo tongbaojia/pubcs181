@@ -372,12 +372,13 @@ def main():
     ##split_train()
     ##for each time, make the training set
     if (ops.maketrain):
+        #split_train()
         make_train_test()
         return 0
     if (ops.train):
 
         # TODO put the names of the feature functions you've defined above in this list
-        ffs = [first_last_system_call_feats, system_call_count_feats, process_type]
+        ffs = [first_last_system_call_feats, system_call_count_feats]
         
         # extract features
         print "extracting training features..."
@@ -404,31 +405,49 @@ def main():
         class_weight = {0: 27.07017543859649, 1: 61.720000000000006, 2: 83.4054054054054, 3: 96.4375, 4: 75.26829268292683, 5: 79.12820512820512, 6: 58.22641509433962, 7: 75.26829268292683, 8: 1.917961466749534, 9: 146.95238095238096, 10: 5.693726937269372, 11: 96.4375, 12: 8.207446808510637, 13: 52.30508474576271, 14: 77.15}
 
         ##list of classifiers and their names
-        classifiers = {
-            #"Nearest_Neighbors": KNeighborsClassifier(3),
-            #"Linear_SVM": SVC(kernel="linear", C=0.025),
-            #"RBF_SVM": SVC(gamma=2, C=1),
-            #"Gaussian_Process": GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True),
-            #"Decision_Tree_40" : DecisionTreeClassifier(max_depth=40),
-            "Decision_Tree_50" : DecisionTreeClassifier(max_depth=50, class_weight=class_weight),##optimal
-            #"Decision_Tree_60" : DecisionTreeClassifier(max_depth=60),
-            "Random_Forest"   : RandomForestClassifier(max_depth=5, n_estimators=500, max_features=1, class_weight=class_weight),
-            "Random_Forest_2" : RandomForestClassifier(max_depth=20, n_estimators=500, max_features=2),
-            "Random_Forest_3" : RandomForestClassifier(max_depth=30, n_estimators=1000, max_features=3),
-            "Random_Forest_4" : RandomForestClassifier(max_depth=40, n_estimators=1000, max_features=4),
-            #"Neural_Net" : MLPClassifier(alpha=1),
-            #"AdaBoost":AdaBoostClassifier(),
-            #"Naive_Bayes": GaussianNB(),
-            #"QDA": QuadraticDiscriminantAnalysis(),
-            }
+        para = [5, 10, 20, 30, 50, 70, 100, 120, 150, 200]
+        score = []
+        # classifiers = {
+        #     #"Nearest_Neighbors": KNeighborsClassifier(3),
+        #     #"Linear_SVM": SVC(kernel="linear", C=0.025),
+        #     #"RBF_SVM": SVC(gamma=2, C=1),
+        #     #"Gaussian_Process": GaussianProcessClassifier(1.0 * RBF(1.0), warm_start=True),
+        #     #"Decision_Tree_40" : DecisionTreeClassifier(max_depth=40),
+        #     "Decision_Tree_5" : DecisionTreeClassifier(max_depth=5),
+        #     "Decision_Tree_7" : DecisionTreeClassifier(max_depth=7),
+        #     "Decision_Tree_10" : DecisionTreeClassifier(max_depth=10),
+        #     "Decision_Tree_20" : DecisionTreeClassifier(max_depth=20),##optimal
+        #     "Decision_Tree_30" : DecisionTreeClassifier(max_depth=30),
+        #     "Decision_Tree_40" : DecisionTreeClassifier(max_depth=40),
+        #     "Decision_Tree_50" : DecisionTreeClassifier(max_depth=50),##optimal
+        #     "Decision_Tree_60" : DecisionTreeClassifier(max_depth=60),
+        #     #"Decision_Tree_50_w" : DecisionTreeClassifier(max_depth=50),##optimal
+        #     #"Decision_Tree_60" : DecisionTreeClassifier(max_depth=60),
+        #     #"Random_Forest"   : RandomForestClassifier(max_depth=5, n_estimators=500, max_features=1, class_weight=class_weight),
+        #     #"Random_Forest_2" : RandomForestClassifier(max_depth=20, n_estimators=500, max_features=2),
+        #     #"Random_Forest_3" : RandomForestClassifier(max_depth=30, n_estimators=1000, max_features=3),
+        #     #"Random_Forest_4" : RandomForestClassifier(max_depth=40, n_estimators=1000, max_features=4),
+        #     #"Neural_Net" : MLPClassifier(alpha=1),
+        #     #"AdaBoost":AdaBoostClassifier(),
+        #     #"Naive_Bayes": GaussianNB(),
+        #     #"QDA": QuadraticDiscriminantAnalysis(),
+        #     }
+        classifiers = {}
+        for i in para:
+            classifiers["DecisionTree_" + str(i)] = DecisionTreeClassifier(max_depth=10, max_features=5, max_leaf_nodes=i)
+
+
         print "truth: ", t_test
-        for name, clf in classifiers.iteritems():
+        for i in para:
+            name = "DecisionTree_" + str(i)
+            clf =  classifiers[name]
             clf.fit(X_train, t_train)
             t_test_prediction = clf.predict(X_test)
             acc_score = accuracy_score(t_test_prediction, t_test)
             #pre_score = precision_score(Y_test, t_test)
             print name, " prediction: ", t_test_prediction
             print name, " accuracy_score: ", acc_score #" precision_score: ", pre_score
+            score.append(acc_score)
         
         # get rid of training data and load test data
         del X_train
@@ -438,6 +457,9 @@ def main():
         del t_test
         del test_ids
     
+
+    util.makeplot(para, score, label="DT, feature", xlabel="Decision Tree Leaf Nodes", ylabel="Acc", plotname="DT_leafnodes")
+
     # TODO make predictions on text data and write them out; dumb value; comment out
     #print "making predictions..."
     #preds = np.argmax(X_test.dot(learned_W),axis=1)
