@@ -16,7 +16,17 @@ We found it helpful to preprocess the data before using it to train the model by
 
 \subsection{Additional Features}
 \paragraph{}
-We found that the additional features drastically improved our accuracy from 0.666667 to 0.899676. The additional feature mainly comes from counting the number of different processes and sections. This can be seen in Figure~\ref{fig:Features}. Notice no extra selection is applied on these features because some malware types are not well represented and we do not want to remove features that are potentially useful for discriminating some specific malwares, even if they often do not appear in other malwares.
+We found that the additional features drastically improved our accuracy from 0.666667 to 0.899676. 
+The extra features are:       
+\begin{itemize}  
+\item number of each kind of tag
+\item proportion of each kind of tag
+\item average number of threads per process
+\item average number of systems calls per section
+\item average number of system calls per process
+ \item total number of tags 
+ \end{itemize}
+The frequency of different features in the dataset is seen in Figure~\ref{fig:Features}. Notice no extra selection is applied on these features because some malware types are not well represented and we do not want to remove features that are potentially useful for discriminating some specific malwares, even if they often do not appear in other malwares.
 
 
 \subsection{Handling data}
