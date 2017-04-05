@@ -15,6 +15,7 @@ from sklearn.metrics import mean_absolute_error as MAE
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.neighbors.kde import KernelDensity
 from sklearn.feature_selection import SelectKBest, chi2
 # from sklearn.metrics import mean_squared_error as MSE
 # from sklearn.neural_network import BernoulliRBM
@@ -145,7 +146,6 @@ def plot_data(df, Y_train):
 
 def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.2), leg="LR"):
     ##get the median value first
-    model_median = np.full(len(Y_test), np.median(np.array(Y_train)))
 
     ##Trim the X_train and Y_train's highest value off
     # max_index = Y_train.index(max(Y_train))
@@ -160,23 +160,24 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     # X_train = sel.transform(X_train)
     # X_test = sel.transform(X_test)
     #print sel.scores_
-    pca = PCA(n_components=3)
-    pca.fit(X_train)
-    X_train = pca.transform(X_train)
-    X_test = pca.transform(X_test)
+    # pca = PCA(n_components=1)
+    # pca.fit(X_train)
+    # X_train = pca.transform(X_train)
+    # X_test = pca.transform(X_test)
 
     #print kmeans.cluster_centers_ 
     ##modify Y_train
+
     Y_train = np.array(Y_train)
-    model.fit(X_train, Y_train)
-    model_pred = model.predict(X_test)
+    # model.fit(X_train, Y_train)
+    # model_pred = model.predict(X_test)
     
     ##cluster + fit
-    # kmeans = KMeans(n_clusters=2, random_state=0).fit(Y_train.reshape(-1, 1))
-    # Y_train_new = kmeans.labels_
-    # model.fit(X_train, Y_train_new)
-    # model_pred_new = model.predict(X_test)
-    # model_pred = [(kmeans.cluster_centers_[i][0]) for i in model_pred_new]
+    kmeans = KMeans(n_clusters=1, random_state=0).fit(Y_train.reshape(-1, 1))
+    Y_train_new = kmeans.labels_
+    model.fit(X_train, Y_train_new)
+    model_pred_new = model.predict(X_test)
+    model_pred = [(kmeans.cluster_centers_[i][0]) for i in model_pred_new]
 
     #model_pred = np.full(len(Y_test), (np.std(Y_train) + np.median(Y_train)))
     #model_pred = np.full(len(Y_test), (kmeans.cluster_centers_[0][0] + kmeans.cluster_centers_[1][0])/2.0)
@@ -187,7 +188,7 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     # print Y_train_new, model_pred
     print Y_test, model_pred
 
-    print (leg + " median: " + str(MAE(model_median, Y_test)))
+    #print (leg + " median: " + str(MAE(model_median, Y_test)))
     print (leg + " MAE: " + str(MAE(model_pred, Y_test)) + " : --- %s seconds ---" % (time.time() - analysis_time))
     
     # RF = RandomForestRegressor()
@@ -203,8 +204,8 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     # plt.title(leg + ': RMSE:%.3f' % (rms/1000.0))
     # plt.savefig('Plot/' + leg +'_pred.png', bbox_inches='tight')
     # plt.clf()
-    #return model_pred
-    return [MAE(model_median, Y_test), MAE(model_pred, Y_test), len(Y_test)]
+    return model_pred
+    #return [MAE(model_median, Y_test), MAE(model_pred, Y_test), len(Y_test)]
 
 def feature_vector(df, df_user):
     #sex, age, country
@@ -232,17 +233,16 @@ def feature_vector(df, df_user):
     feature.append(int(df["alias-count"]))
     feature.append(int(df["release-count"]))
     feature.append(int(df["recording-count"]))
+
     #print df["life-span"], type(df["life-span"])
     #feature.append(int(df["life-span"]["life-span"]))
     #try:
-
     #print int(str(df["life-span"]).split()[1].split("-")[0])
     #print "aha"
+
     feature.append((int(str(df["life-span"]).split()[1].split("-")[0]) - 1900)%10)## artist's starting age
     feature.append(int(bool(str(df_user[2]) in str(df["area"])))) ##if the user and the viewer as the same area
-
-
-    ##type vector
+    # ##type vector
     feature.append(1 if "rock"  in str(df["tag-list"]) else 0)
     feature.append(1 if "pop"   in str(df["tag-list"]) else 0)
     feature.append(1 if "class" in str(df["tag-list"]) else 0)
@@ -330,6 +330,11 @@ def analysis():
     ##reverse engineer
 
     total_MAE = [0, 0, 0]
+
+    test_truth_Y = []
+    test_median_Y = []
+    test_model_Y = []
+
     for i, obs in enumerate(pd_mergetrain["Obs"]):
         # this_listen = 0
         # for artist_id, n_listen in obs.items():
@@ -338,11 +343,12 @@ def analysis():
 
         #total_listen.append(len (obs))
         if i < 100:
-
             train_Y = []
             test_Y = []
             train_X = []
             test_X = []
+            user_Y = []
+
             if (i%100 == 0):
                 util.drawProgressBar(i/233286.0)
             train_size = int(len (obs) * 0.9)
@@ -356,10 +362,12 @@ def analysis():
             for artist_id, n_listen in obs.items():
                 if (count_size < train_size):
                     train_Y.append(int(n_listen))
+                    user_Y.append(int(n_listen))
                     #train_Y.append(int(n_listen/(total_listen * 1.0) * 100))
                     train_X.append(feature_vector(pd_artists[pd_artists['ID'] == artist_id], pd_mergetrain["Value"][i]))
                 else:
                     test_Y.append(int(n_listen))
+                    test_truth_Y.append(int(n_listen))
                     #test_Y.append(int(n_listen/(total_listen * 1.0) * 100))
                     test_X.append(feature_vector(pd_artists[pd_artists['ID'] == artist_id], pd_mergetrain["Value"][i]))
                 count_size += 1
@@ -369,16 +377,20 @@ def analysis():
             #result =  modeling(train_X, train_Y, test_X, test_Y)
             #result =  modeling(train_X, train_Y, test_X, test_Y, model=LinearRegression(), leg="linear")
             #result  = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeRegressor(), leg="DT")
-            result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsRegressor(n_neighbors=3, weights='distance'), leg="KNN")
-            #result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsClassifier(n_neighbors=2), leg="KNN")
-            #result  = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeClassifier(max_depth=20), leg="DT")
+            #result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsRegressor(n_neighbors=3, weights='distance'), leg="KNN")
+            result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsClassifier(n_neighbors=2), leg="KNN")
+            #
             #result  = modeling(train_X, train_Y, test_X, test_Y, model=RandomForestRegressor(), leg="RFR")
             
-
+            for i in range(test_size):
+                test_median_Y.append(np.median(np.array(user_Y)))
+            for i in result:
+                test_model_Y.append(i)
             
-            total_MAE[0] += result[0]
-            total_MAE[1] += result[1]
-            total_MAE[2] += result[2]
+            #total_MAE[0] += result[0]
+            #total_MAE[1] += result[1]
+            #total_MAE[2] += result[2]
+
                 # try:
                 #     print pd_artists[pd_artists['ID'] == artist_id]
 
@@ -387,11 +399,14 @@ def analysis():
         else:
             break
 
+    #result  = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeClassifier(max_depth=20), leg="DT")
+
+    print "median: ", MAE(test_median_Y, test_truth_Y), " model: ", MAE(test_model_Y, test_truth_Y)
     #result = modeling(train_X, train_Y, test_X, test_Y, model=linear_model.Lasso(alpha=0.2), leg="DT")
     #result = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeRegressor(max_depth=10), leg="DT")
     #result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsRegressor(n_neighbors=10, weights='distance'), leg="KNN")
     
-    print "MAE median is: ", total_MAE[0]/total_MAE[2], " method: ", total_MAE[1]/total_MAE[2]
+    #print "MAE median is: ", total_MAE[0]/total_MAE[2], " method: ", total_MAE[1]/total_MAE[2]
 
     #check n listen
     #util.makehst(x=total_listen, label="n music listened", xlabel="N artist", ylabel="count", plotname="Nartist_count")
