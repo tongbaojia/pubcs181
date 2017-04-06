@@ -133,26 +133,45 @@ def add_artfeature():
             util.drawProgressBar(i/233286.0)
 
         code = user_number(pd_mergetrain["Value"][i])
+
+        #instead of the pure count, just save the average rating...normalized 
+        n_total_listen = []
+        for artist_id, n_listen in obs.items():
+            n_total_listen.append(n_listen)
+
+        n_max = float(max(n_total_listen))
+        n_min = float(min(n_total_listen))
+        
+        def score(n_listen):
+            try:
+                return (5.0 * (n_listen - n_min)/(n_max - n_min) + 1)
+            except ZeroDivisionError:
+                return 3.0
+
+
         for artist_id, n_listen in obs.items():
             #save each one
             try:
-                new_dic[artist_id][code].append(n_listen)
+                new_dic[artist_id][code].append(score(n_listen))
             except KeyError:
-                new_dic[artist_id][code] = [n_listen]
+                new_dic[artist_id][code] = [score(n_listen)]
 
             #save the all as well
             try:
-                new_dic[artist_id]["all"].append(n_listen)
+                new_dic[artist_id]["all"].append(score(n_listen))
             except KeyError:
-                new_dic[artist_id]["all"] = [n_listen]
+                new_dic[artist_id]["all"] = [score(n_listen)]
 
-    for i, artist in enumerate(pd_artists["ID"]):
-        for key, value in new_dic[artist].items():
-            new_dic[artist][key] = np.median(np.array(map(int, value)))
+    # for i, artist in enumerate(pd_artists["ID"]):
+    #     for key, value in new_dic[artist].items():
+    #         new_dic[artist][key] = np.median(np.array(map(float, value)))
 
-    new_art = pd.DataFrame(new_dic.items(), columns=['ID', 'Info']) 
-    print new_art
-    new_art.to_pickle("new_artmedian.pd")
+
+    with open("new_artmedian_rating.txt", "w") as f:
+        json.dump(new_dic, f)
+    #new_art = pd.DataFrame(new_dic.items(), columns=['ID', 'Info']) 
+    #print new_art
+    #new_art.to_pickle("new_artmedian_rating.pd")
 
     #print new_dic
     #print temp_lst
@@ -232,13 +251,26 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     #model_pred = np.full(len(Y_test), (kmeans.cluster_centers_[0][0] + kmeans.cluster_centers_[1][0])/2.0)
 
     #print X_train, X_test
-    X_train_mean_play = np.array([i[-1] for i in X_train])
-    X_test_mean_play = np.array([i[-1] for i in X_test])
-    ratio_play = np.divide(Y_train, X_train_mean_play)
-    #ratio_play.delete(np.amin(ratio_play))
-    ratio = np.median(ratio_play)
-    #ratio = math.floor(ratio) ##trick?
-    model_pred = X_test_mean_play * ratio
+    # X_train_mean_play = np.array([i[-1] for i in X_train])
+    # X_test_mean_play = np.array([i[-1] for i in X_test])
+    # ratio_play = np.divide(Y_train, X_train_mean_play)
+    # #ratio_play.delete(np.amin(ratio_play))
+    # ratio = np.median(ratio_play)
+    # ratio_2 =  np.median(ratio_play[1:])
+    # ratio = (ratio + ratio_2) / 2.0
+    # #ratio = math.floor(ratio) ##trick?
+    # model_pred = X_test_mean_play * ratio
+
+
+
+    ##terrible but whatever
+    ratio = 1
+    predict = np.median(np.array(Y_train))
+    if len(Y_train) >= 5:
+        if np.std(np.array(Y_train)) / np.median(np.array(Y_train)) < 1.0:
+            predict = (np.median(np.array(Y_train)) + np.median(np.array(Y_train[1:])) + np.median(np.array(Y_train[:-2])))/3.0
+
+    model_pred = np.full(len(Y_test), predict)
 
     #ratio = 1
     # median = np.median(Y_train)
@@ -255,9 +287,11 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     #print Y_test, model_pred
     #print (leg + " MAE: " + str(MAE(model_pred, Y_test)) + " : --- %s seconds ---" % (time.time() - analysis_time))
     #print (leg + " median: " + str(MAE(model_median, Y_test)))
-    if MAE(model_median, Y_test) < MAE(model_pred, Y_test):
-        ratio = 0
-        model_pred = model_median
+    
+    ##bad practice
+    # if MAE(model_median, Y_test) < MAE(model_pred, Y_test):
+    #     ratio = 0
+    #     model_pred = model_median
     
     # RF = RandomForestRegressor()
     # RF.fit(X_train, Y_train)
@@ -343,8 +377,9 @@ def feature_vector(df, df_user):
 
     code = user_number(df_user)
     
-    for key, value in df["Info"].iteritems():
-        feature.append((value[code]))
+    for key, value in df.iteritems(): ##no longer need info
+        #print value
+        feature.append(value)
 
     # for key, value in df["Info"].iteritems():
     #     plays = np.array(map(int, value[code]))
@@ -413,11 +448,22 @@ def analysis():
 
     ##load the artist framework
     #pd_artists = pd.read_pickle("artists.pd")
-    pd_artists = pd.read_pickle("new_artmedian.pd")
-    #pd_artists = pd.read_pickle("new_art.pd")
+    #pd_artists = pd.read_pickle("new_artmedian.pd") ## this is the only median
+    #pd_artists = pd.read_pickle("new_art.pd") ## this is the full list
+    #pd_artists = pd.read_pickle("new_artmedian_rating.pd") ##this is the current one
+    #dic_artists = pd_artists.set_index("ID")["Info"].to_dict()
     pd_mergetrain = pd.read_pickle("train.pd")
+    with open("new_artmedian_rating.txt", "r") as f:
+        dic_artists = json.load(f)
+
     ## make the artist framework
     ##add_artfeature()
+    for key, value in dic_artists.iteritems():
+        for code, code_value in value.iteritems():
+            #print code, code_value
+            dic_artists[key][code] = np.median(np.array(map(float, code_value)))
+            # if code == "all":
+            #     print dic_artists[key][code]
     
     ##reverse engineer
     total_MAE = [0, 0, 0]
@@ -434,7 +480,7 @@ def analysis():
         # total_listen.append(this_listen)
 
         #total_listen.append(len (obs))
-        if i < 2332860.0:
+        if i < 233286.0:
             train_Y = []
             test_Y = []
             train_X = []
@@ -443,7 +489,7 @@ def analysis():
 
             if (i%100 == 0):
                 util.drawProgressBar(i/233286.0)
-            train_size = int(len (obs) * 0.8)
+            train_size = int(len (obs) * 0.9)
             test_size  = len (obs) - train_size
             #print pd_mergetrain["Value"][i] ##this is the X_vector; sex, age, country
             count_size = 0
@@ -456,7 +502,7 @@ def analysis():
                     train_Y.append(int(n_listen))
                     user_Y.append(int(n_listen))
                     #train_Y.append(int(n_listen/(total_listen * 1.0) * 100))
-                    train_X.append(feature_vector(pd_artists[pd_artists['ID'] == artist_id], pd_mergetrain["Value"][i]))
+                    train_X.append(feature_vector(dic_artists[artist_id], pd_mergetrain["Value"][i]))
                 else:
                     #train_Y.append(int(n_listen))
                     #user_Y.append(int(n_listen))
@@ -466,7 +512,7 @@ def analysis():
                     test_Y.append(int(n_listen))
                     test_truth_Y.append(int(n_listen))
                     #test_Y.append(int(n_listen/(total_listen * 1.0) * 100))
-                    test_X.append(feature_vector(pd_artists[pd_artists['ID'] == artist_id], pd_mergetrain["Value"][i]))
+                    test_X.append(feature_vector(dic_artists[artist_id], pd_mergetrain["Value"][i]))
                 count_size += 1
 
             #print train_Y, test_Y
@@ -505,8 +551,9 @@ def analysis():
     #result  = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeClassifier(max_depth=20), leg="DT")
 
     print "median: ", MAE(test_median_Y, test_truth_Y), " model: ", MAE(test_model_Y, test_truth_Y)
-    pd_mergetrain["ratio"] = user_ratio
-    pd_mergetrain.to_pickle("newtrain.pd")
+    #pd_mergetrain["ratio"] = user_ratio
+    #pd_mergetrain.to_pickle("newtrain.pd")
+    
     #result = modeling(train_X, train_Y, test_X, test_Y, model=linear_model.Lasso(alpha=0.2), leg="DT")
     #result = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeRegressor(max_depth=10), leg="DT")
     #result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsRegressor(n_neighbors=10, weights='distance'), leg="KNN")
