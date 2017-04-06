@@ -54,34 +54,50 @@ def write_to_file(filename, predictions):
         for i,p in enumerate(predictions):
             f.write(str(i+1) + "," + str(p) + "\n")
 
-def clean_data(df, output=False):
-    #check sign..
-    #weird = df.ix[df["gap"] < 0]
-    #print weird.smiles.values
-    # for i in df.smiles.values:
-    #     if "c12" in i:
-    #         print "check:", i
-    #drop gap values
-    if not output:
-        df  = df.drop(['gap'], axis=1)
-    #drop smiles strings, add in length
+def user_number(obs):
+    sex = obs[0]
+    try:
+        age = int(obs[1])
+    except ValueError:
+        age = 100
+    country = obs[2]
+    code = ""
+    if "m" in sex:
+        code += "0"
+    elif "f" in sex:
+        code += "1"
+    else:
+        code += "2"
 
-    ##add in other features
-    """
-    Example Feature Engineering
-    this calculates the length of each smile string and adds a feature column with those lengths
-    Note: this is NOT a good feature and will result in a lower score!
-    """
-    smiles_len = np.vstack(df.smiles.astype(str).apply(lambda x: len(x)))
-    df['smiles_len'] = pd.DataFrame(smiles_len)
-    df  = df.drop(['smiles'], axis=1)
+    if int(age) < 18:
+        code += "0"
+    elif int(age) < 21:
+        code += "1"
+    elif int(age) < 25:
+        code += "2"
+    elif int(age) < 30:
+        code += "3"
+    elif int(age) < 35:
+        code += "4"
+    elif int(age) < 40:
+        code += "5"
+    elif int(age) < 45:
+        code += "6"
+    else :
+        code += "7"
 
-    print "shape of the dataset is: ", df.shape
-    return df
+    if "States" in country:
+        code += "0"
+    elif "Kingdom" in country:
+        code += "1"
+    else :
+        code += "2"
+    return code
 
 def add_artfeature():
     ## make the artist framework
     pd_artists = pd.read_pickle("artists.pd")
+    pd_mergetrain = pd.read_pickle("train.pd")
     #[u'work-list', 'release-group-count', 'work-count', u'alias-list', 'id', 'area', 'life-span', 'alias-count', 
     #u'release-group-list', u'begin-area', u'release-list', 'recording-count', 'tag-list', u'artist-relation-list', u'sort-name', 
     #u'work-relation-list', u'url-relation-list', u'event-relation-list', 'release-count', u'recording-list', u'isni-list', 
@@ -89,30 +105,63 @@ def add_artfeature():
     #u'release_group-relation-list', 'gender', u'label-relation-list', u'ipi', u'ipi-list', u'annotation', u'series-relation-list', u'place-relation-list']
 
     ##this is for adding features to artists
-    temp_lst = []##check content
-    add_column = []
-    add_column_name = "gender"
-    for key, value in pd_artists["Value"].iteritems():
-        try:
-            #add_column.append(value["artist"][add_column_name])
-            tag_temp = ""
-            for i in value["artist"][add_column_name]:
-                # print 
-                # if i["name"] not in temp_lst:
-                tag_temp += str(value["artist"][add_column_name]) + ";"
-                #tag_temp += (i["name"] + "," +  str(i["count"]) + ";")
-            add_column.append(tag_temp)
-        except KeyError:
-            add_column.append(0)
-            #pass
+    # temp_lst = []##check content
+    # add_column = []
+    # add_column_name = "gender"
+    # for key, value in pd_artists["Value"].iteritems():
+    #     try:
+    #         #add_column.append(value["artist"][add_column_name])
+    #         tag_temp = ""
+    #         for i in value["artist"][add_column_name]:
+    #             # print 
+    #             # if i["name"] not in temp_lst:
+    #             tag_temp += str(value["artist"][add_column_name]) + ";"
+    #             #tag_temp += (i["name"] + "," +  str(i["count"]) + ";")
+    #         add_column.append(tag_temp)
+    #     except KeyError:
+    #         add_column.append(0)
+    #         #pass
 
+
+
+    new_dic = {}
+    for i, artist in enumerate(pd_artists["ID"]):
+        new_dic[artist] = {}
+
+    for i, obs in enumerate(pd_mergetrain["Obs"]):
+        if (i%100 == 0):
+            util.drawProgressBar(i/233286.0)
+
+        code = user_number(pd_mergetrain["Value"][i])
+        for artist_id, n_listen in obs.items():
+            #save each one
+            try:
+                new_dic[artist_id][code].append(n_listen)
+            except KeyError:
+                new_dic[artist_id][code] = [n_listen]
+
+            #save the all as well
+            try:
+                new_dic[artist_id]["all"].append(n_listen)
+            except KeyError:
+                new_dic[artist_id]["all"] = [n_listen]
+
+    for i, artist in enumerate(pd_artists["ID"]):
+        for key, value in new_dic[artist].items():
+            new_dic[artist][key] = np.median(np.array(map(int, value)))
+
+    new_art = pd.DataFrame(new_dic.items(), columns=['ID', 'Info']) 
+    print new_art
+    new_art.to_pickle("new_artmedian.pd")
+
+    #print new_dic
     #print temp_lst
-    print add_column[0]
+    #print add_column[0]
     # print add_column[1]
     # print add_column[-1]
-    pd_artists[add_column_name] = add_column
-    print pd_artists
-    print pd_artists.info()
+    #pd_artists[add_column_name] = add_column
+    #print pd_artists
+    #print pd_artists.info()
     #pd_artists.to_pickle("artists.pd")
     return
 
@@ -173,23 +222,42 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     # model_pred = model.predict(X_test)
     
     ##cluster + fit
-    kmeans = KMeans(n_clusters=1, random_state=0).fit(Y_train.reshape(-1, 1))
-    Y_train_new = kmeans.labels_
-    model.fit(X_train, Y_train_new)
-    model_pred_new = model.predict(X_test)
-    model_pred = [(kmeans.cluster_centers_[i][0]) for i in model_pred_new]
+    # kmeans = KMeans(n_clusters=2, random_state=0).fit(Y_train.reshape(-1, 1))
+    # Y_train_new = kmeans.labels_
+    # model.fit(X_train, Y_train_new)
+    # model_pred_new = model.predict(X_test)
+    # model_pred = [(kmeans.cluster_centers_[i][0]) for i in model_pred_new]
 
     #model_pred = np.full(len(Y_test), (np.std(Y_train) + np.median(Y_train)))
     #model_pred = np.full(len(Y_test), (kmeans.cluster_centers_[0][0] + kmeans.cluster_centers_[1][0])/2.0)
 
-    # print X_train, X_test
-    # print kmeans.cluster_centers_
-    # print Y_train, np.median(np.array(Y_train))
-    # print Y_train_new, model_pred
-    print Y_test, model_pred
+    #print X_train, X_test
+    X_train_mean_play = np.array([i[-1] for i in X_train])
+    X_test_mean_play = np.array([i[-1] for i in X_test])
+    ratio_play = np.divide(Y_train, X_train_mean_play)
+    #ratio_play.delete(np.amin(ratio_play))
+    ratio = np.median(ratio_play)
+    #ratio = math.floor(ratio) ##trick?
+    model_pred = X_test_mean_play * ratio
 
+    #ratio = 1
+    # median = np.median(Y_train)
+    # mean = np.mean(Y_train)
+    # mode = np.mode(np.around(Y_train, decimals=-(1)))
+    # guess = (median + )
+    model_median = np.full(len(Y_test), (np.median(np.array(Y_train))))
+
+    #print X_train_mean_play, X_test_mean_play
+    #print np.divide(Y_train, X_train_mean_play), ratio
+    # print kmeans.cluster_centers_
+    #print Y_train, np.median(np.array(Y_train))
+    # print Y_train_new, model_pred
+    #print Y_test, model_pred
+    #print (leg + " MAE: " + str(MAE(model_pred, Y_test)) + " : --- %s seconds ---" % (time.time() - analysis_time))
     #print (leg + " median: " + str(MAE(model_median, Y_test)))
-    print (leg + " MAE: " + str(MAE(model_pred, Y_test)) + " : --- %s seconds ---" % (time.time() - analysis_time))
+    if MAE(model_median, Y_test) < MAE(model_pred, Y_test):
+        ratio = 0
+        model_pred = model_median
     
     # RF = RandomForestRegressor()
     # RF.fit(X_train, Y_train)
@@ -204,7 +272,7 @@ def modeling(X_train, Y_train, X_test, Y_test, model=linear_model.Lasso(alpha=0.
     # plt.title(leg + ': RMSE:%.3f' % (rms/1000.0))
     # plt.savefig('Plot/' + leg +'_pred.png', bbox_inches='tight')
     # plt.clf()
-    return model_pred
+    return (model_pred, ratio)
     #return [MAE(model_median, Y_test), MAE(model_pred, Y_test), len(Y_test)]
 
 def feature_vector(df, df_user):
@@ -226,13 +294,13 @@ def feature_vector(df, df_user):
     # recording-count        2000 non-null int64
     # tag-list               2000 non-null object
     feature = []
-    feature.append(int(float(df["rating"]) * 10))
-    feature.append(int(df["rating_votes"]))
-    feature.append(int(df["work-count"]))
-    feature.append(int(df["release-group-count"]))
-    feature.append(int(df["alias-count"]))
-    feature.append(int(df["release-count"]))
-    feature.append(int(df["recording-count"]))
+    # feature.append(int(float(df["rating"]) * 10))
+    # feature.append(int(df["rating_votes"]))
+    # feature.append(int(df["work-count"]))
+    # feature.append(int(df["release-group-count"]))
+    # feature.append(int(df["alias-count"]))
+    # feature.append(int(df["release-count"]))
+    # feature.append(int(df["recording-count"]))
 
     #print df["life-span"], type(df["life-span"])
     #feature.append(int(df["life-span"]["life-span"]))
@@ -240,39 +308,62 @@ def feature_vector(df, df_user):
     #print int(str(df["life-span"]).split()[1].split("-")[0])
     #print "aha"
 
-    feature.append((int(str(df["life-span"]).split()[1].split("-")[0]) - 1900)%10)## artist's starting age
-    feature.append(int(bool(str(df_user[2]) in str(df["area"])))) ##if the user and the viewer as the same area
+    #feature.append((int(str(df["life-span"]).split()[1].split("-")[0]) - 1900)%10)## artist's starting age
+    #feature.append(int(bool(str(df_user[2]) in str(df["area"])))) ##if the user and the viewer as the same area
+    #feature.append(int(str(df["life-span"]).split()[1].split("-")[0]))## artist's starting age
+    #feature.append(int(bool(str(df_user[2]) in str(df["area"])))) ##if the user and the viewer as the same area
     # ##type vector
-    feature.append(1 if "rock"  in str(df["tag-list"]) else 0)
-    feature.append(1 if "pop"   in str(df["tag-list"]) else 0)
-    feature.append(1 if "class" in str(df["tag-list"]) else 0)
-    feature.append(1 if "hop"   in str(df["tag-list"]) else 0)
-    feature.append(1 if "elec"  in str(df["tag-list"]) else 0)
-    feature.append(1 if "jazz"  in str(df["tag-list"]) else 0)
-    feature.append(1 if "metal"  in str(df["tag-list"]) else 0)
+    # feature.append(1 if "rock"  in str(df["tag-list"]) else 0)
+    # feature.append(1 if "pop"   in str(df["tag-list"]) else 0)
+    # feature.append(1 if "class" in str(df["tag-list"]) else 0)
+    # feature.append(1 if "hop"   in str(df["tag-list"]) else 0)
+    # feature.append(1 if "elec"  in str(df["tag-list"]) else 0)
+    # feature.append(1 if "jazz"  in str(df["tag-list"]) else 0)
+    # feature.append(1 if "metal"  in str(df["tag-list"]) else 0)
 
     ##this is the play information from the training data
+    # for key, value in df["gender"].iteritems():
+    #     genders = str(value).split(";")
+    #     feature.append(genders.count("Male"))
+    #     feature.append(genders.count("Female"))
 
-    for key, value in df["gender"].iteritems():
-        genders = str(value).split(";")
-        feature.append(genders.count("Male"))
-        feature.append(genders.count("Female"))
+    # for key, value in df["plays"].iteritems():
+    #     plays = np.array(map(int, value))
 
+    # feature.append(np.sum(plays))
+    # feature.append(len(plays))
+    # feature.append(max(plays))
+    # feature.append(min(plays))
+    # feature.append(np.std(plays))
+    # feature.append(np.mean(plays))
+    # feature.append(np.median(plays))
 
-    for key, value in df["plays"].iteritems():
-        plays = np.array(map(int, value))
-    feature.append(len(plays))
-    feature.append(max(plays))
-    feature.append(min(plays))
-    feature.append(np.median(plays))
-    feature.append(np.std(plays))
-    feature.append(np.mean(plays))
+    def reject_outliers(data, m=2):
+        return data[abs(data - np.median(data)) < m * np.std(data)]
 
+    code = user_number(df_user)
+    
+    for key, value in df["Info"].iteritems():
+        feature.append((value[code]))
+
+    # for key, value in df["Info"].iteritems():
+    #     plays = np.array(map(int, value[code]))
+    #     allplays =  np.array(map(int, value["all"]))
+
+    #plays = reject_outliers(plays)
+    #save in case
+    # if plays.size == 0:
+    #     plays = allplays
+
+    # feature.append(np.median(plays))
     return feature
 
 
 
 def analysis():
+    #add_artfeature()
+    # return
+
     global analysis_time
     analysis_time = time.time()
     NPartdata = int(1000) #takes 1sec to load; 1% of the total size
@@ -321,20 +412,21 @@ def analysis():
 
 
     ##load the artist framework
-    pd_artists = pd.read_pickle("artists.pd")
+    #pd_artists = pd.read_pickle("artists.pd")
+    pd_artists = pd.read_pickle("new_artmedian.pd")
+    #pd_artists = pd.read_pickle("new_art.pd")
     pd_mergetrain = pd.read_pickle("train.pd")
     ## make the artist framework
     ##add_artfeature()
     
-
     ##reverse engineer
-
     total_MAE = [0, 0, 0]
 
     test_truth_Y = []
     test_median_Y = []
     test_model_Y = []
 
+    user_ratio = []
     for i, obs in enumerate(pd_mergetrain["Obs"]):
         # this_listen = 0
         # for artist_id, n_listen in obs.items():
@@ -342,7 +434,7 @@ def analysis():
         # total_listen.append(this_listen)
 
         #total_listen.append(len (obs))
-        if i < 100:
+        if i < 2332860.0:
             train_Y = []
             test_Y = []
             train_X = []
@@ -351,7 +443,7 @@ def analysis():
 
             if (i%100 == 0):
                 util.drawProgressBar(i/233286.0)
-            train_size = int(len (obs) * 0.9)
+            train_size = int(len (obs) * 0.8)
             test_size  = len (obs) - train_size
             #print pd_mergetrain["Value"][i] ##this is the X_vector; sex, age, country
             count_size = 0
@@ -366,6 +458,11 @@ def analysis():
                     #train_Y.append(int(n_listen/(total_listen * 1.0) * 100))
                     train_X.append(feature_vector(pd_artists[pd_artists['ID'] == artist_id], pd_mergetrain["Value"][i]))
                 else:
+                    #train_Y.append(int(n_listen))
+                    #user_Y.append(int(n_listen))
+                    #train_Y.append(int(n_listen/(total_listen * 1.0) * 100))
+                    #train_X.append(feature_vector(pd_artists[pd_artists['ID'] == artist_id], pd_mergetrain["Value"][i]))
+
                     test_Y.append(int(n_listen))
                     test_truth_Y.append(int(n_listen))
                     #test_Y.append(int(n_listen/(total_listen * 1.0) * 100))
@@ -382,11 +479,12 @@ def analysis():
             #
             #result  = modeling(train_X, train_Y, test_X, test_Y, model=RandomForestRegressor(), leg="RFR")
             
-            for i in range(test_size):
+            for j in range(test_size):
                 test_median_Y.append(np.median(np.array(user_Y)))
-            for i in result:
-                test_model_Y.append(i)
+            for k in result[0]:
+                test_model_Y.append(k)
             
+            user_ratio.append(result[1])
             #total_MAE[0] += result[0]
             #total_MAE[1] += result[1]
             #total_MAE[2] += result[2]
@@ -396,12 +494,19 @@ def analysis():
 
                 # except KeyError:
                 #     pass
+
+            if (i%1000 == 0):
+                print "median: ", MAE(test_median_Y, test_truth_Y), " model: ", MAE(test_model_Y, test_truth_Y)
         else:
             break
+
+
 
     #result  = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeClassifier(max_depth=20), leg="DT")
 
     print "median: ", MAE(test_median_Y, test_truth_Y), " model: ", MAE(test_model_Y, test_truth_Y)
+    pd_mergetrain["ratio"] = user_ratio
+    pd_mergetrain.to_pickle("newtrain.pd")
     #result = modeling(train_X, train_Y, test_X, test_Y, model=linear_model.Lasso(alpha=0.2), leg="DT")
     #result = modeling(train_X, train_Y, test_X, test_Y, model=DecisionTreeRegressor(max_depth=10), leg="DT")
     #result  = modeling(train_X, train_Y, test_X, test_Y, model=KNeighborsRegressor(n_neighbors=10, weights='distance'), leg="KNN")
