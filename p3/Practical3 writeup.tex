@@ -20,7 +20,7 @@ To avoid unrealistic features in the data, we first  filled in missing datapoint
 To obtains plots in Figs. \ref{SVD_k}-\ref{SVD_g}, we selected 5\% of our data at random to use as a test set for cross-validation. 
 \paragraph{} 
 \section{Results}
-\paragraph{} We explored four different methods and compared the results. Kaggle scores obtained by our methods are summarized in table \ref{tab:results}. 
+\paragraph{} We explored several different methods and submitted the most promising predictions on kaggle. Kaggle scores are summarized in table \ref{tab:results}. 
   \begin{table}
 \centering
 \begin{tabular}{llr}
@@ -47,7 +47,7 @@ Here $X$ is the matrix whose rows represent users and whose columns represent ar
 \centering
         \includegraphics[width=0.6\textwidth]{Plots/SVD.pdf}
         \caption{Illustration of Singular Value Decomposition.}
-            \label{fig:SVD}
+            \label{SVD}
 \end{figure}
 
 The number of singular values, $k$, is a parameter we pass to the SVD function. Once a diagonalization is obtained, there are many possible ways to proceed. Because of time constraints, we limited ourselves to two simple approaches:
@@ -60,7 +60,7 @@ n_{ij} = U[i,:]SV[:,j]
 \end{equation}
 where $U[i,:]$ denotes $i$'th row of matrix $U$. We calculated mean error of the prediction as function of $k$, the number of singular values. Our results are plotted in Fig. \ref{SVD_k}.We saw the error in our prediction decrease steadily as function of the number of singular values, reaching below 160 with $k = 800$. While the trend was promising, we ran into memory constraints before we could beat the baseline. 
 
-Another concern is that, with $k$ approaching half of the total number of artists, we may be in serious danger of overfitting, and in fact we are simply approaching the median values we initially used to fill in the missing values in the data. Intuitively, we would not expect to find as many trends as there are artists.
+A serious concern is that, with $k$ approaching half of the total number of artists, we are most likely overfitting, and in fact we are simply approaching the median values we initially used to fill in the missing values in the data. Intuitively, we would not expect to find as many trends as there are artists.
 
 \item We attempted to improve on the basic SVD prediction by taking advantage of the reduced dimensionality of the data after decomposition to find $g$ nearest neighbors of a given user. We used  the KDTree library from the scipy.spatial module, which has efficient methods for finding a given number of closet vectors to a given vector. We used rows of $U$ to compute user-to-user distance. We then used an average of the number of listens to the same artist by nearest neighbors to predict listens of a given user. Mean error as function of $g$, the number of neighbors, is plotted in Fig. \ref{SVD_g}. The averaging was done after normalizing each user's number of listens. While the error decreased with group size, the computational cost rose very quickly, making it difficult to find convergence in the error.
 \end{enumerate}
