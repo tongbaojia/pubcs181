@@ -10,7 +10,17 @@
 \begin{document}
 \maketitle{}
 \section{Data}
+\subsection{Data Information}
+First, some basic checks on the dataset is done, as shown in Figs. \ref{Info}.
+\begin{figure}[] 
+\centering
+        \includegraphics[width=0.33\textwidth]{Plots/Nmusic_count_zoom.png}
+        \includegraphics[width=0.33\textwidth]{Plots/Nartist_count.png}
+        \caption{Left: Total umber of listens for each user; Right: for each user, the number of artists he/she listens to.}
+            \label{Info}
+\end{figure}
 \subsection{Additional Features}
+The artist information is gathered from musicbrainzngs API, with informations like tags, ratings, gender, and number of recordings. The user information is given, and further sorted into categories based on their sex, age and country.
 
 \subsection{Data Preprocessing for Singular Value Decomposition}
 In order to perform matrix operations on our data, we had to translate it from dictionary form to a sparse matrix. We used lil\_matrix format from scipy.sparse, because it is intended for incremental construction of the matrix, one value at a time. We then called the singular value decomposition function intended for sparse matrices. We constructed our predictions in lil\_matrix format as well. With these 
@@ -28,6 +38,7 @@ To obtains plots in Figs. \ref{SVD_k}-\ref{SVD_g}, we selected 5\% of our data a
  Model &  & Acc. \\
  \midrule
  \textsc{Baseline} & &137.79146\\
+ \textsc{Modified Median} && 137.77158\\
  \bottomrule
 \end{tabular}
 \caption{\label{tab:results} Summary of our best prediction accuracies on the kaggle test dataset.}
@@ -90,9 +101,18 @@ A serious concern is that, with $k$ approaching half of the total number of arti
 \end{figure}
 
 
-\paragraph{}.
-\subsection{Method 2}
 \paragraph{}
+\subsection{User Based Models}
+\paragraph{}
+We favored for each user, train a small Decision Tree/Random Forest based on the number of plays and the artists feature matrix, just based on the artist's information. The next method we tried is to generate features based on the user features. For the features, we converted them into integers and floats. Features was large, like 10-20 in dimensions, so we tried to use PCA and SelectKBest to reduce the dimensions.
+ 
+\paragraph{}
+Unfortunately, wee ran into computation issues because of re-evaluating the features for each artists too many times. This was fixed only at the last minute and hindered us to further explore and fix potential bugs. Both of these model testing turn out to be extremely computationally expensive given the large dataset; and also, due to the small size of the training sample, which is around 20, the performance of these user based models tend to perform poorly on the test sample.
+
+\paragraph{}
+\subsection{Modified Median}
+\paragraph{}
+Given a lot of methods we tried failed, we went back to evaluate the validity of the median. It certainly helped in cases where there are outliers, but for a rather normal user-preference distribution, it is not as good as mean. Hence, we played a trick that if the user's training standard deviation is smaller than the median, we take the middle three values and re-evaluate the mean of these three medians. This helps to reduce the bias in a normal user and it helped us to beat the median score, although only by a marginal fraction. From this, we think we should change the modeling strategy to find for different groups of users, which estimator--mean or median--would be better. But we don't have enough time for that testing.
 
 \section{Discussion} 
 
