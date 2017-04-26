@@ -1,7 +1,7 @@
 # Imports.
 import numpy as np
 import numpy.random as npr
-
+import matplotlib.pyplot as plt
 from SwingyMonkey import SwingyMonkey
 
 
@@ -23,26 +23,38 @@ class Learner(object):
         self.screen_height = 400
         self.gravity = 0
         self.edge    = 0
+        self.edge_high_offset = 30
+        self.edge_low_offset  = 30 ##should actually code learning...
 
         ##set the descretize values; min; max; binsize
-        self.par_tree_dis   = [-100, 600, 50] ##no negative for now
-        self.par_monkey_vel = [-50,  50,  10]
-        self.par_monkey_top = [0,    450, 50] ##monkey x top
-        self.par_diff_top   = [-100, 440, 20] ##monkey x - tree top
-        self.par_diff_bot   = [-200, 200, 20] ##monkey x - tree bot
+        self.par_tree_dis   = [-100, 600, 100] ##no negative for now; use this
+        self.par_monkey_vel = [-50,  50,  10] ##monkey velocity; use this
+        self.par_monkey_top = [0,    450, 50] ##monkey x top; use this
+        self.par_diff_top   = [-200, 200, 20] ##monkey x - tree top
+        self.par_diff_bot   = [-200, 200, 40] ##monkey x - tree bot; use this
 
         Q_dimension = self.tran_state({"tree":{"dist": 600, "top": 0, "bot": 0}, 
-            "monkey":{"vel":50, "top": 400, "bot": 200}}, init=True)##initialize the Q dimension
+            "monkey":{"vel":50, "top": 450, "bot": 200}}, init=True)##initialize the Q dimension
         print "initial", Q_dimension
-        self.Q = np.zeros(Q_dimension + (2, ))
-        ##change intitialization; reward intial jump
-        self.Q[ 0, :,  :,   :]   =  [0, 0.1]
-        self.Q[ :, 4:, :,   :]  =  [0.1, 0]
-        self.Q[ :, :,  :4,  :]    =  [0, 0.1]
+        self.Q_high = np.zeros(Q_dimension + (2, ))
+        ##change intitialization; reward intial jump; for high gravity
+        self.Q_high[ :, :,  :,  :,   :]    =  [0.02, 0]
+        self.Q_high[ :, :2, :,  :,   :]    =  [0, 0.01]
+        self.Q_high[ :, :,  :2, :,   :]    =  [0, 0.01]
+        self.Q_high[ :, :,  :,  :4,  :]    =  [0, 0.02]
+        self.Q_low = np.zeros(Q_dimension + (2, ))
+        ##change intitialization; reward intial jump; for low gravity
+        self.Q_high[ :, :,  :,  :,   :]    =  [0.02, 0]
+        self.Q_high[ :, :1, :,  :,   :]    =  [0, 0.01]
+        self.Q_high[ :, :,  :2, :,   :]    =  [0, 0.01]
+        self.Q_high[ :, :,  :,  :3,  :]    =  [0, 0.02]
+        ##default using Q_high
+        #self.Q = self.Q_high
 
         ##set the learning parameters
-        self.eta = 0.9
-        self.gamma = 0.9
+        self.iter    = 0
+        self.eta     = 0.9
+        self.gamma   = 0.9
         self.epsilon = 0.01
 
     def reset(self):
@@ -53,8 +65,7 @@ class Learner(object):
         self.last_reward = None
         
         ##learner private parameters
-        self.Value = 0
-        self.gravity = 0
+        self.gravity = None
         #self.edge    = 10
 
     def zoom_value(self, value, info, init=False):
@@ -73,12 +84,23 @@ class Learner(object):
     def tran_state(self, state, init=False):
         '''Transforms the state into a vector, could be felxible.'''
         state_vector = ()
-        #state_vector += (self.zoom_value(state["tree"]["dist"], self.par_tree_dis, init), )
+        state_vector += (self.zoom_value(state["tree"]["dist"], self.par_tree_dis, init), )
         state_vector += (self.zoom_value(state["monkey"]["vel"], self.par_monkey_vel, init), )
         state_vector += (self.zoom_value(state["monkey"]["top"], self.par_monkey_top, init), )
         #state_vector += (self.zoom_value(state["monkey"]["top"] - state["tree"]["top"], self.par_diff_top, init), )
         state_vector += (self.zoom_value(state["monkey"]["bot"] - state["tree"]["bot"], self.par_diff_bot, init), )
         return state_vector
+
+    def the_Q(self):
+        if self.gravity is None:
+            if self.last_state is not None:
+                self.gravity =  self.cur_state["monkey"]["vel"] - self.last_state["monkey"]["vel"]
+            else:
+                return self.Q_low
+        if self.gravity < 2:
+            return self.Q_low
+        else:
+            return self.Q_high
 
     def action_callback(self, state):
         '''
@@ -91,7 +113,14 @@ class Learner(object):
         # You'll need to select and action and return it.
         # Return 0 to swing and 1 to jump.
 
-        def tran_model(state, eta=0.9, gamma=0.9):
+        ##decide which Q to actually use and update
+        if self.last_state is not None:
+            self.gravity =  state["monkey"]["vel"] - self.last_state["monkey"]["vel"]
+        if self.gravity < 2:
+            self.Q = self.Q_low
+
+
+        def tran_model(state):
             '''return the action, given the state'''
 
             rel_top = state["tree"]["top"] - state["monkey"]["top"]
@@ -110,15 +139,20 @@ class Learner(object):
             #     return False
             ##this works for large gravity well, because the poisson mean is small
             ##let's take gravity into account
-            #rel_time = int(state["tree"]["dist"] / 25)
+            rel_time = int(state["tree"]["dist"] / 25)
             ##tranlate to 3 steps
-            if rel_top - rel_vel  < self.edge: ##do not jump in this case for sure
+            safe_low_dist  = self.edge if self.gravity > 2 else self.edge + self.edge_low_offset
+            safe_high_dist = self.edge if self.gravity > 2 else self.edge + self.edge_high_offset
+            
+            if state["monkey"]["top"] + rel_vel > self.screen_height:
+                return 0
+            elif rel_top + rel_vel < safe_high_dist: ##do not jump in this case for sure
                 #print "will hit tree top"
                 return 0
-            elif rel_bot + rel_vel  < self.edge + 40/self.gravity:
+            elif rel_bot + rel_vel < safe_low_dist:
                 #print "will hit tree bottom"
                 return 1
-            elif state["monkey"]["bot"] -  rel_vel  < self.edge:
+            elif state["monkey"]["bot"] + rel_vel < safe_low_dist:
                 #print "will hit edge bottom"
                 return 1
             #print rel_top, rel_bot, rel_vel
@@ -127,16 +161,18 @@ class Learner(object):
         #new_action = npr.rand() < 0.2
         #print "new_action:", new_action, "new_state:", state, 
         #print " Value: ", self.Value
-        
+        ##iteration dependent epsilon
+        self.epsilon = min(0, self.epsilon - self.iter * 0.000001)
         if npr.random() < self.epsilon:
             #new_action = npr.choice([0, 1])
             new_action = tran_model(state)
         else:
             #print self.tran_state(state), state
-            new_action = np.argmax(self.Q[self.tran_state(state)])
+            Q = self.the_Q()
+            new_action = np.argmax(Q[self.tran_state(state)])
 
         
-        new_action = tran_model(state)
+        # new_action = tran_model(state)
         # def update_value(reward):
         #     if reward < 0:
         #         self.edge += npr.choice([-1,1]) * 1
@@ -157,13 +193,26 @@ class Learner(object):
     def reward_callback(self, reward):
         '''This gets called so you can see what reward you get.'''
         #print "reward:", reward
-
+        self.iter += 1
+        Q = self.the_Q()
         ### update the Q function
         if self.last_action is not None:
             s_l = self.tran_state(self.last_state)
             s_c = self.tran_state(self.cur_state)
             action = (self.last_action, )
-            self.Q[s_l + action] += self.eta * (reward + self.gamma * np.argmax(self.Q[s_c]) - self.Q[s_l + action])
+            ##or iteration dependent eta:
+            self.eta   = max(0.5, self.eta   - self.iter * 0.00001)
+            self.gamma = max(0.5, self.gamma - self.iter * 0.00001)
+
+            Q[s_l + action] += self.eta * (reward + self.gamma * np.argmax(Q[s_c]) - Q[s_l + action])
+           
+
+        # ###update the fixed parameters
+        # if reward < -5:
+        #     self.edge_high_offset += 1
+        # elif reward < -1:
+        #     self.edge_low_offset  -= 1
+        #     #self.edge_high_offset += 1
 
         self.last_reward = reward
 
@@ -193,7 +242,7 @@ def run_games(learner, hist, iters = 100, t_len = 100):
         
         # Save score history.
         hist.append(swing.score)
-        print ii, " mean is:", np.mean(np.array(hist)), "max is: ", max(hist)
+        print ii, " mean is:", np.mean(np.array(hist)), "max is: ", max(hist), "total iter is: ", learner.iter
 
         # Reset the state of the learner.
         learner.reset()
@@ -210,9 +259,20 @@ if __name__ == '__main__':
     hist = []
 
     # Run games. 
-    run_games(agent, hist, 20, 0)
+    run_games(agent, hist, 500, 0)
     print hist
-    #print np.mean(agent.Q), agent.Q
+    #print agent.Q_high[ :, :,  :,  :5,  :]
+    print "high g Q: ", np.mean(agent.Q_high), np.mean(agent.Q_high[0]), np.mean(agent.Q_high[1]), np.mean(agent.Q_high[2]), np.mean(agent.Q_high[3])
+    print "low g Q: ", np.mean(agent.Q_low), np.mean(agent.Q_low[0]), np.mean(agent.Q_low[1]), np.mean(agent.Q_low[2]), np.mean(agent.Q_low[3])
+
+    
+    plt.plot(range(len(hist)), hist, 'o' , label='train')
+    plt.xlabel("epoch")
+    plt.ylabel("score")
+    plt.savefig('../Plot/learn.png', bbox_inches='tight')
+    plt.clf()
+    #print agent.Q
+    #print agent.edge_high_offset, agent.edge_low_offset
     # Save history. 
     np.save('hist',np.array(hist))
 
