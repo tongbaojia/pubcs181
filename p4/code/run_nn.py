@@ -2,9 +2,11 @@
 import numpy as np
 import numpy.random as npr        
 import  matplotlib.pyplot as plt
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler  
+import warnings
 
 from SwingyMonkey import SwingyMonkey
-
 
 class Learner(object):
 
@@ -14,78 +16,115 @@ class Learner(object):
         self.last_reward = None
         self.last_vel = None
         
-        self.epsilon = 0.0 # probability that we explore at every step
+        self.epsilon = 0.05 # probability that we explore at every step
         self.gamma = 0.6 #discount for future reward
-        self.eta = 0.5 #step for gradient descent
-        
-        self.grid_size = 100
-        self.vel_grid_size= 5
-        
-        self.n_top_gaps = 800/self.grid_size
-        self.n_front_gaps = 600/self.grid_size
-        self.n_ground_gaps = 400/self.grid_size
-        self.n_speeds = 200/self.vel_grid_size
-        self.n_grav = 4 #number of possible values of gravity
-        #n_speeds= 25/grid_size
-
-        self.Q = np.zeros((self.n_top_gaps, self.n_front_gaps,self.n_ground_gaps, self.n_speeds, self.n_grav, 2))
         
         self.default_grav = 2
         self.grav = None
 
+        self.layers = (5,5)
+        self.max_iter = 200
+        self.max_history = 4000
+        
+        self.s_a_history = np.empty((0,5))
+        self.reward_history = np.empty((0))
+        self.Q_history = np.empty((0))
+        self.count = 0
+        
+        #def main():
+        self.mlp = None
+        self.scaler = StandardScaler(with_mean = False)
+        
     def reset(self):
+        
+        #print('self.s_a_history')
+        #print(self.s_a_history)
+        #print('self.Q_history')
+        #print(self.Q_history)
+        
+        if self.s_a_history.shape[0]>self.max_history:
+            self.s_a_history = self.s_a_history[-self.max_history:, :]
+            self.reward_history = self.reward_history[-self.max_history:]
+            self.Q_history = self.Q_history[-self.max_history:]
+            self.epsilon = 0
+            #print('Finished exploring')
+        #Learn Q function using neural network
+        if self.mlp is None:
+            self.mlp = MLPRegressor(hidden_layer_sizes=self.layers, max_iter=self.max_iter, verbose = False)
+        self.scaler.fit(self.s_a_history)
+        s_a_scaled = self.scaler.transform(self.s_a_history)
+        self.mlp.fit(s_a_scaled, self.Q_history)
+        
+        #self.s_a_history = np.empty((0,5))
+        #self.reward_history = np.empty((0,1))
+        #self.Q_history = np.empty((0,1))
+        
         self.last_state  = None
         self.last_action = None
         self.last_reward = None
         self.last_vel = None
+        self.count = 0
         
         self.grav = None
 
     def action_callback(self, state):
         # Return 0 to swing and 1 to jump.
-        # Epsilon-greedy policy
-    
+        # Cause all warnings to raise exceptions:
         #Find out what state we are in:
         top_gap = (state['tree']['top']-state['monkey']['top'])
         front_gap = state['tree']['dist']
         ground_gap = state['monkey']['bot']
         vel = state['monkey']['vel']
-        #print(vel)
+
         #Measure gravity
         grav = self.default_grav
         if self.grav is None:
             if self.last_state is not None:
                 if self.last_action == 0:
                     self.grav = (self.last_vel-vel)
+                    grav = self.grav
         else:
             grav = self.grav
         
         #Write down current state
-        current_state=(top_gap/self.grid_size+self.n_top_gaps/2, front_gap/self.grid_size,ground_gap/self.grid_size,  vel/self.vel_grid_size+self.n_speeds/2, grav-1) 
-        
-        #print('last state = '+str(self.last_state))
+        current_state=(top_gap, front_gap,  vel, grav) 
         
         #Update Q(s,a) from previous (s,a) using current s',a'
         if self.last_state is not None:
-            self.Q[self.last_state][self.last_action]-= self.eta*(self.Q[self.last_state][self.last_action]-self.last_reward-self.gamma*np.max(self.Q[current_state]))  
+            self.s_a_history = np.vstack((self.s_a_history, np.append(self.last_state, self.last_action)))
+            self.reward_history = np.append(self.reward_history, self.last_reward)
+            self.Q_history = np.append(self.Q_history, self.last_reward)
         
+        if self.count>1:
+            if self.mlp is not None:
+                state_0 = self.scaler.transform(np.hstack((self.last_state, 0)).reshape(1,-1))
+                state_1 = self.scaler.transform(np.hstack((self.last_state, 1)).reshape(1,-1))
+                self.Q_history[-2] += self.gamma*np.max(
+                    (self.mlp.predict(state_0.reshape(1,-1)),
+                     self.mlp.predict(state_1.reshape(1,-1))))
+            else:
+                self.Q_history[-2] += self.gamma*self.last_reward     
+
         #Make next move
-        if npr.rand()<self.epsilon:
+        if npr.rand()<self.epsilon or self.mlp is None or self.count == 0:
             #Explore
-            #print('exploring')
-            if npr.rand <0.5:
+            if npr.rand <0.5 or self.count == 0:
                 new_action = 0
             else:
                 new_action = 1
         else:
             #Maximize reward
-            q = self.Q[current_state]
+            state_0 = self.scaler.transform(np.hstack((current_state, 0)).reshape(1,-1))
+            state_1 = self.scaler.transform(np.hstack((current_state, 1)).reshape(1,-1))
+            q =(self.mlp.predict(state_0.reshape(1,-1)),
+                     self.mlp.predict(state_1.reshape(1,-1)))
             new_action = np.argmax(q)  
-            #print('max reward = '+str(np.max(q)))
+            #print('Chosen action = '+str(new_action))
+            
         self.last_vel = vel    
         self.last_action = new_action
         self.last_state  = current_state
-
+        self.count+=1
         return self.last_action
 
     def reward_callback(self, reward):
@@ -121,17 +160,19 @@ def run_games(learner, hist, iters = 1000, t_len = 2000):
 
 if __name__ == '__main__':
 
+
     # Select agent.
     agent = Learner()
 
     # Empty list to save history.
     hist = []
     # Run games. 
-    run_games(agent, hist, 100, 2)
+    N_iter= 500
+    run_games(agent, hist, N_iter, 2)
     
     # Save history. 
     
-    filename = 'eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_eta_'+str(agent.eta)+'_grid_'+str(agent.grid_size)+'_vgrid_'+str(agent.vel_grid_size)
+    filename = 'NN_layers'+str(agent.layers)+'eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_iter_'+str(N_iter)
     
     thefile = open(str(filename)+'.txt', 'w')
     for item in hist:
