@@ -1,3 +1,10 @@
-(Fill this in with run instructions.)
+CS181 Practical 4: Swingy Monkey Solution
 
-`python run.py`
+This is the code for the practical, by Yuliya Dovzhenko, Alan Le Goallec, Baojia(Tony) Tong. 
+
+SwingyMonkey.py -- This is the code that operates the game. You can run it by:
+`python SwingyMonkey.py`
+
+Tony_learn.py -- This is the code from Tony, using Q-learning. You can run it by:
+`python Tony_learn.py`
+It will operate learning on 100 epoches.
