@@ -18,3 +18,6 @@ states, actions, rewards, and Q's. It takes a weighted average of predicted Q(s,
 observed [r(s,a) + max gamma*Q(s',a')] at every step. It retrains the net on the latest 
 history after each game.
 $python run_nn.py
+
+
+ql.py — Code from Alan, using Q-learning. Proposes different ways to deal with the first steps of each epoch, when gravity is undetermined.
