@@ -2,9 +2,23 @@ CS181 Practical 4: Swingy Monkey Solution
 
 This is the code for the practical, by Yuliya Dovzhenko, Alan Le Goallec, Baojia(Tony) Tong. 
 
-SwingyMonkey.py -- This is the code that operates the game. You can run it by:
-`python SwingyMonkey.py`
+
 
 Tony_learn.py -- This is the code from Tony, using Q-learning. You can run it by:
 `python Tony_learn.py`
 It will operate learning on 100 epoches.
+
+
+
+run_q.py -- Code from Yuliya, using epsilon gready Q learning, where the states are
+defined in terms of bottom, top and front clearance distances, rounded to a coarse
+grid
+$python run_q.py
+
+
+
+run_nn.py -- Code from Yuliya with a neural network basis. It records history of past 
+states, actions, rewards, and Q's. It takes a weighted average of predicted Q(s,a) and 
+observed [r(s,a) + max gamma*Q(s',a')] at every step. It retrains the net on the latest 
+history after each game.
+$python run_nn.py

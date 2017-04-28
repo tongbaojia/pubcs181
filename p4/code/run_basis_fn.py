@@ -1,14 +1,7 @@
-# CS 181 
-# Q learning with epsilon-greedy policy.
-
-# Each state is described by:
-# - clearance between monkey and top tree
-# - clearance between monkey and ground
-# - horizontal clearance between monkey and next tree
-# - velocity
-# - gravity
-
-# All distances are rounded to the nearest coarse grid multiple to shrink state space
+# CS181
+# Q-leaning Swingy Monkey using basis functions
+# Linear basis was tried, as well as 
+# a time basis (where all distances are converted to time to collision)
 
 # Imports.
 import numpy as np
@@ -20,29 +13,35 @@ from SwingyMonkey import SwingyMonkey
 class Learner(object):
 
     def __init__(self):
-        self.last_state  = None
+        self.last_Q  = None
+        self.last_state = None
         self.last_action = None
         self.last_reward = None
         self.last_vel = None
         self.count = 0
         
-        self.epsilon = 0.0 # probability that we explore at every step
-        self.gamma = 0.99 #discount for future reward
-        self.eta = 0.01 #step for gradient descent
+        self.epsilon = 0.1# probability that we explore at every step
+        self.gamma = 0.9 #discount for future reward
+        self.eta = 0.1 #step for gradient descent
         
-        #coarse grid parameters to reduce number of states
-        self.grid_size = 100
-        self.vel_grid_size= 2
+        # Coefficients for linear basis function
+        self.a0_coeff = npr.rand(6)
+        self.a1_coeff = npr.rand(6)
         
-        #These are dimensions of the state space
-        self.n_top_gaps = 800/self.grid_size
-        self.n_front_gaps = 600/self.grid_size
-        self.n_ground_gaps = 400/self.grid_size
-        self.n_speeds = 200/self.vel_grid_size
-        self.n_grav = 2 #number of possible values of gravity
-
-        self.Q = np.zeros((self.n_top_gaps, self.n_front_gaps,self.n_ground_gaps, self.n_speeds, self.n_grav, 2))
+        # Coefficients for time-based basis functions
+        # (Converting distances to times-to-collision using velocity and gravity values)
+        """
+        self.A = 0
+        self.B = 0
+        self.C = 0
+        self.D = 0
+        self.E = 0
+        self.F = 0
+        self.offset0 = 0
+        self.offset1 = 0
+        """
         
+        #gravity
         self.default_grav = 1
         self.grav = None
 
@@ -66,39 +65,62 @@ class Learner(object):
         ground_gap = state['monkey']['bot']
         vel = state['monkey']['vel']
 
+
         #Measure gravity
         grav = self.default_grav
         if self.grav is None:
             if self.last_state is not None:
                 if self.last_action == 0:
-                    self.grav = (self.last_vel-vel)/4
+                    self.grav = (self.last_vel-vel)
                     grav = self.grav
         else:
             grav = self.grav
-        
-        #Write down current state
-        current_state=(top_gap/self.grid_size+self.n_top_gaps/2, front_gap/self.grid_size,ground_gap/self.grid_size,  vel/self.vel_grid_size+self.n_speeds/2, grav-1) 
+        current_state = np.array((1, top_gap, front_gap, ground_gap, vel, grav))
         
         #Update Q(s,a) from previous (s,a) using current s',a'
         if self.last_state is not None:
-            self.Q[self.last_state][self.last_action]-= self.eta*(self.Q[self.last_state][self.last_action]-self.last_reward-self.gamma*np.max(self.Q[current_state]))  
-        
+            q = (np.dot(self.a0_coeff, current_state), np.dot(self.a1_coeff, current_state))
+            if self.last_action ==0:
+                self.a0_coeff-=self.eta*(self.last_Q-self.last_reward-self.gamma*np.max(q))*self.a0_coeff
+            else:
+                self.a1_coeff-=self.eta*(self.last_Q-self.last_reward-self.gamma*np.max(q))*self.a1_coeff
+            """
+            q = (self.A*vel/grav+
+                       self.B*np.sqrt(np.abs(float(vel**2+2*grav*ground_gap)))/grav+self.C*front_gap+self.offset0,
+                      self.D*vel/grav+
+                       self.E*np.sqrt(np.abs(float(vel**2-2*grav*top_gap)))/grav+self.F*front_gap+self.offset1)     
+            if self.last_action ==0:
+                self.A-=self.eta*vel/grav*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                self.B-=self.eta*np.sqrt(np.abs(float(vel**2+2*grav*ground_gap)))/grav*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                self.C-=self.eta*front_gap*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                self.offset0-=self.eta*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+            else:
+                self.D-=self.eta*vel/grav*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                self.E-=self.eta*np.sqrt(np.abs(float(vel**2-2*grav*top_gap)))/grav*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                self.F-=self.eta*front_gap*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                self.offset1-=self.eta*(self.last_Q-self.last_reward-self.gamma*np.max(q))
+                """
         #Make next move
+        #Write down current state-action q values
+        """q = (self.A*vel/grav+
+                       self.B*np.sqrt(np.abs(float(vel**2+2*grav*ground_gap)))/grav+self.C*front_gap,
+                      self.D*vel/grav+
+                       self.E*np.sqrt(np.abs(float(vel**2-2*grav*top_gap)))/grav+self.F*front_gap)"""
+        q = (np.dot(self.a0_coeff, current_state), np.dot(self.a1_coeff, current_state))
+        
         if npr.rand()<self.epsilon or self.count == 0:
             #Explore
-            #print('exploring')
             if npr.rand <0.5 or self.count == 0:
                 new_action = 0
             else:
                 new_action = 1
         else:
             #Maximize reward
-            q = self.Q[current_state]
             new_action = np.argmax(q)  
-            #print('max reward = '+str(np.max(q)))
         self.last_vel = vel    
         self.last_action = new_action
         self.last_state  = current_state
+        self.last_Q = np.max(q)
         self.count +=1
         return self.last_action
 
@@ -144,11 +166,11 @@ if __name__ == '__main__':
     grav = []
     
     # Run games. 
-    N_iter = 500
+    N_iter = 50
     run_games(agent, hist, grav, N_iter, 2)
     
     # Save history. 
-    filename = 'eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_eta_'+str(agent.eta)+'_grid_'+str(agent.grid_size)+'_vgrid_'+str(agent.vel_grid_size)+'_iter_'+str(N_iter)
+    filename = 'Basis_eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_eta_'+str(agent.eta)+'_iter_'+str(N_iter)
     
     thefile = open(str(filename)+'.txt', 'w')
     for (score,g) in zip(hist, grav):
@@ -164,3 +186,4 @@ if __name__ == '__main__':
     plt.savefig(filename+'.png')
 
     plt.show()
+    #np.save('hist',np.array(hist))
