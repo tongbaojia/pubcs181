@@ -9,11 +9,15 @@
 \author{ Baojia Tong (baojia.tong@cern.ch)\\Yuliya Dovzhenko (dovzhenko@g.harvard.edu)\\Alan Legoallec (alanlegoallec@g.harvard.edu )\\\\Public Repository: https://github.com/tongbaojia/pubcs181}
 \begin{document}
 \maketitle{}
-
-\section{Data}
-\paragraph{}
-
+The goal of this assignment is to program an agent that learns to play the game Swingy Monkey. Agent's actions are either jump or no jump. 
 \section{Method}
+We have tried the following methods:
+\begin{itemize}
+\item Deterministic policy
+\item $\epsilon$-greedy Q learning
+\item Q learning with Neural Net basis
+\item Q learning with analytical function basis
+\end{itemize}
 \subsection{Fixed Policy}
 \paragraph{}
 There exists simple analytical solutions to this problem, if the speed change every time is not Poisson. Given this randomness nature, the solution can no longer be deterministic. However, if the gravity is large, thus the speed change could be compensated over a certain time, a simple solution could still be achieved, as shown in Figure ~\ref{FixedPolicy}. This is coded as the "$tran\_model$" function.
@@ -59,8 +63,53 @@ We tried off-policy method to fully explore the world.
         \caption{Left: with the low G model only; middle: with the high G model only; right: with the mixed model.}
             \label{QModel}
 \end{figure}
+\subsection{Neural Net Basis}
+\paragraph{}Our main challenge is the size of the state space. We can round distances to a coarse grid, potentially throwing away useful information. The state space is still large. Furthermore, we don't take advantage of the physical simplicity of the problem. We would like the monkey to see that a new state may be very similar to a known state.
+
+\paragraph{}One approach is to treat $Q(s,a)$ as an adaptive function of the inputs, i.e. neural net. Ideally, we would perform steepest gradient descent to optimize the parameters of the net. We would need to compute $\frac{Q}{w}$ for each $w$ parameter of the net. Given the time constraints, we chose instead to use a scikit multilayer perceptron library. Instead of performing steepest descent, we take a weighted average of current prediction $Q(s,a)$ with newly obtained information:
+\begin{equation}Q(s,a)\rightarrow(1-\eta)Q(s,a)+\eta(r(s,a)+\gamma\max_{a'}Q(s',a'))\label{eq}\end{equation}
+We trained the neural net after each game on a limited history of past $(s,a)$ pairs and corresponding $Q(s,a)$ values from eq. \ref{eq}. Once the net is trained, we use it to estimate $Q(s,a)$ in the next game.
+
+This method performed comparatively to Q learning without a basis. It performed much better in high gravity than low gravity (see Fig. \ref{nn}).
+
+\begin{figure}[] 
+\centering
+        \includegraphics[width=0.35\textwidth]{NN_plots/NN_layers_5_5_eps_0_g_0_6_iter_500.png}
+        \includegraphics[width=0.4\textwidth]{NN_plots/NN_layers_5_5_eps_0_g_0_6_iter_500_histograms.png}
+        \caption{}
+            \label{nn}
+\end{figure}
+
+
+
+\subsection{Analytical Basis Functions} 
+The objective here is to condense a large parameter space to fewer relevant quantities. We tried to express $Q(s,a)$ in a time basis (converting distances into time to collision). For example, here is how we solve for time until monkey hits the ground:
+
+\begin{gather}
+-d_{ground} = -\frac{1}{2}gt^2+vt\\
+t = \frac{v+\sqrt{v^2-2gd_{ground}}}{g},
+\end{gather}
+where $g$ is the magnitude of the acceleration of gravity, and $-g$ indicates that the acceleration is in the downward direction.
+
+Solving for time until hitting the roof and time to next tree in a similar fashion, we put forward the following functional forms for $Q$:
+\begin{gather}
+Q(v, g, d_{ground},d_{front}, a= 0) = A\frac{v}{g}+B\frac{\sqrt{v_0^2-2gd_{ground}}}{g}+Cd_{front},\\
+Q(v, g, d_{top},d_{front}, a=1) = E\frac{v}{g}+E\frac{\sqrt{v_0^2+2gd_{top}}}{g}+Fd_{front}
+\end{gather}
+
+where $A,B,C,D,E,F$ are parameters to be tuned via steepest descent. Here is an example of an update to $A$:
+\begin{equation}
+A\leftarrow A-\eta(Q(s,a)-r(s,a)-\gamma\max_{a'}Q(s',a'))\frac{\partial Q}{\partial A}
+\end{equation}
+
+In practice this method led to rapidly diverging values of the coefficients, even with small $\eta$. A possible reason is that this model for $Q(s,a)$ is over-simplified.
+
+\subsection{}
 
 \section{Discussion} 
+For each method, we found it difficult to achieve consistent performance across different epochs. One reason is that low gravity is harder to beat. In Fig. \ref{nn}, we show histograms for two different gravity values an the difference is significant.
+
+With a neural net basis, we occasionally got very large scores (in multiple hundreds), but mostly the behavior was similar to Q learning without a basis. It was significantly slower due to the need to train the net at every iteration. History size was a challenge: we want a moving window, in order to forget earlier values, but we also need a lot of data to train the net. 
 \paragraph{}
 
 \end{document}
