@@ -1,7 +1,5 @@
 CS181 Practical 4: Swingy Monkey Solution
-
 This is the code for the practical, by Yuliya Dovzhenko, Alan Le Goallec, Baojia(Tony) Tong. 
-
 
 
 Tony_learn.py -- This is the code from Tony, using Q-learning. You can run it by:
@@ -9,12 +7,10 @@ Tony_learn.py -- This is the code from Tony, using Q-learning. You can run it by
 It will operate learning on 100 epoches.
 
 
-
 run_q.py -- Code from Yuliya, using epsilon gready Q learning, where the states are
 defined in terms of bottom, top and front clearance distances, rounded to a coarse
 grid
 $python run_q.py
-
 
 
 run_nn.py -- Code from Yuliya with a neural network basis. It records history of past 

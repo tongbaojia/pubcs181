@@ -173,8 +173,8 @@ if __name__ == '__main__':
     grav = []
     
     # Run games. 
-    N_iter= 500
-    run_games(agent, hist, grav, N_iter, 2)
+    N_iter= 100
+    run_games(agent, hist, grav, N_iter, 10)
     
     # Save history. 
     filename = 'NN_layers'+str(agent.layers)+'eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_iter_'+str(N_iter)

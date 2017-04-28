@@ -32,7 +32,7 @@ class Learner(object):
         
         #coarse grid parameters to reduce number of states
         self.grid_size = 100
-        self.vel_grid_size= 2
+        self.vel_grid_size= 5
         
         #These are dimensions of the state space
         self.n_top_gaps = 800/self.grid_size
@@ -144,8 +144,8 @@ if __name__ == '__main__':
     grav = []
     
     # Run games. 
-    N_iter = 500
-    run_games(agent, hist, grav, N_iter, 2)
+    N_iter = 100
+    run_games(agent, hist, grav, N_iter, 10)
     
     # Save history. 
     filename = 'eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_eta_'+str(agent.eta)+'_grid_'+str(agent.grid_size)+'_vgrid_'+str(agent.vel_grid_size)+'_iter_'+str(N_iter)
