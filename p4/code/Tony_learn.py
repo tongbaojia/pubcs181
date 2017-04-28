@@ -125,7 +125,7 @@ class Learner(object):
 
 
         def tran_model(state):
-            '''return the action, given the state'''
+            '''return the action, given the state; this is s a deterministic model'''
 
             rel_top = state["tree"]["top"] - state["monkey"]["top"]
             rel_bot = state["monkey"]["bot"] - state["tree"]["bot"]
