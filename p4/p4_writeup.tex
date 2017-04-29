@@ -104,13 +104,18 @@ A\leftarrow A-\eta(Q(s,a)-r(s,a)-\gamma\max_{a'}Q(s',a'))\frac{\partial Q}{\part
 
 In practice this method led to rapidly diverging values of the coefficients, even with small $\eta$. A possible reason is that this model for $Q(s,a)$ is over-simplified.
 
-\subsection{}
+\subsection{Undetermined gravity
+}
+Each gravity can be trained separately, using the value of the gravity as a state. As mentioned above, gravity can easily be determined if the monkey is not jumping. There are several ways to deal with the incertitude at the beginning of each epoch.
+1-Enforce that the first move of the monkey should be not to jump, to infer the gravity, and then only train/use the model. 
+2-Encode the unknown gravity as a 5th value of the state (e.g zero), which can be used/trained until the gravity is determined for this epoch.
+3-Use the most likely gravity, correcting for the effect of the impulse, whose distribution parameter is known (Poisson(15)), until the actual gravity can be determined.
+4-Start with an arbitrary value of the gravity, close to the average/median. (2 or 3)
 
 \section{Discussion} 
 For each method, we found it difficult to achieve consistent performance across different epochs. One reason is that low gravity is harder to beat. In Fig. \ref{nn}, we show histograms for two different gravity values an the difference is significant.
 
 With a neural net basis, we occasionally got very large scores (in multiple hundreds), but mostly the behavior was similar to Q learning without a basis. It was significantly slower due to the need to train the net at every iteration. History size was a challenge: we want a moving window, in order to forget earlier values, but we also need a lot of data to train the net. 
-\paragraph{}
 
 \end{document}
 
