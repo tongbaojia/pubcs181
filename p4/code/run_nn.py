@@ -25,14 +25,14 @@ class Learner(object):
         
         self.epsilon = 0.01 # probability that we explore at every step
         self.gamma = 0.9 #discount for future reward
-        self.eta = 0.5
+        self.eta = 0.1
         
         self.default_grav = 1
         self.grav = None
 
         self.layers = (5,5)
-        self.max_iter = 100
-        self.max_history = 500
+        self.max_iter = 200
+        self.max_history = 600
         
         self.s_a_history = np.empty((0,5))
         self.reward_history = np.empty((0))
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     
     # Run games. 
     N_iter= 100
-    run_games(agent, hist, grav, N_iter, 10)
+    run_games(agent, hist, grav, N_iter, 1)
     
     # Save history. 
     filename = 'NN_layers'+str(agent.layers)+'eps_'+str(agent.epsilon)+'_g_'+str(agent.gamma)+'_iter_'+str(N_iter)
